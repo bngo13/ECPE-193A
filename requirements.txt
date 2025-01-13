@@ -1,0 +1,7 @@
+pandas
+opencv-python
+numpy
+scikit-learn
+matplotlib
+seaborn
+PyQT6
