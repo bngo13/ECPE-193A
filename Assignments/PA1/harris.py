@@ -74,7 +74,7 @@ def horizontal_gaussian(image, sigma):
 
 def covariance(image, vert_grad, horiz_grad, window):
   (height, width) = image.shape
-  Z = []
+  Z = np.zeros((height, width), dtype=object)
   for i in range(0, height):
     for j in range(0, width):
       ixx = 0
@@ -95,37 +95,50 @@ def covariance(image, vert_grad, horiz_grad, window):
             iyy += horiz.astype(np.int64) * horiz.astype(np.int64)
             ixy += vert.astype(np.int64) * horiz.astype(np.int64)
       
-      Z.append(
-        [
-          [ixx, ixy], 
-          [ixy, iyy]
-        ]
-      )
+      Z[i][j] = np.array([ [ixx, ixy], [ixy, iyy] ], dtype=object)
   
   return Z
 
-def find_corners(image, cov_mat, cornerness_val = 0.04):
-  (height, width) = image.shape
-  evalue, evect = np.linalg.eig(cov_mat)
+def find_corners(cov_mat, cornerness_val = 0.04):
+  (height, width) = cov_mat.shape
+  features = []
+  for i in range(0, height):
+    for j in range(0, width):
+      eval, _ = np.linalg.eig(cov_mat[i][j].astype(np.int64))
+      val = (eval[0] * eval[1]) - (cornerness_val * ((eval[0] + eval[1]) ** 2))
+      features.append((i, j, val))
 
-  features = np.zeros((height, width))
-
-  i = 0
-  j = 0
-  for eval in evalue:
-    if j >= width:
-      i += 1
-      j = 0
-    
-    val = (eval[0] * eval[1]) - (cornerness_val * ((eval[0] + eval[1]) ** 2))
-    features[i][j] = val
-
-    j += 1
-  
   return features
-  
+
+def get_top_features(features: list, k_values = 50, val_distance = 5):
+  top_features = []
+  feature_count = 0
+  sorted_features = sorted(features, key = lambda item : item[2], reverse=True)
+  for feature in sorted_features:
+    if len(top_features) >= k_values:
+      return top_features
+    
+    addable = True
+    for existing_features in top_features:
+      # Manhatten Distance
+      distance = abs(existing_features[1] - feature[1]) + abs(existing_features[0] - feature[0])
+      if distance < val_distance:
+        addable = False
+        break
+    
+    if not addable:
+      continue
+      
+    feature_count += 1
+    top_features.append(feature)
+
+  return top_features
 
 def main():
+  # Program Constants
+  sigma = 0.6
+  window = 7
+
   # Get file
   Tk().withdraw()
   filename = askopenfilename()
@@ -133,19 +146,20 @@ def main():
   # Read the image as grayscale
   image = cv2.imread(filename, 0)
 
-  (vertical_blur, horiz_grad) = vertical_gaussian(image, 1)
-  (horizontal_blur, vert_grad) = horizontal_gaussian(image, 1)
+  (vertical_blur, horiz_grad) = vertical_gaussian(image, sigma)
+  (horizontal_blur, vert_grad) = horizontal_gaussian(image, sigma)
 
-  cov_mat = covariance(image, vert_grad, horiz_grad, 7)
+  cov_mat = covariance(image, vert_grad, horiz_grad, window)
 
-  top_features = find_corners(image, cov_mat)
+  feature_list = find_corners(cov_mat)
+  top_features = get_top_features(feature_list)
+  # breakpoint()
+  for (x,y, _) in top_features:
+    cv2.putText(image, 'X', (y, x), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
 
-  breakpoint()
-
+  cv2.imshow("initial frame", image)
   cv2.waitKey(0)
   cv2.destroyAllWindows()
-
-
 
 if __name__ == "__main__":
   main()
