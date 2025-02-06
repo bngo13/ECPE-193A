@@ -2,8 +2,15 @@ import cv2
 import numpy as np
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
-import math
-import os
+
+# Program Constants
+SIGMA = 0.6
+WINDOW = 7
+
+CORNERNESS = 0.04
+KVAL = 50
+MIN_DISTANCE = 5
+
 
 def GaussianKernel(sigma):
   # Calc a vertical gaussian kernel
@@ -59,29 +66,29 @@ def convolve(image, kernel):
 
   return convolution_img
 
-def vertical_gaussian(image, sigma):
+def vertical_gaussian(image):
   # First perform a gaussian blur
-  vertical_kernel = GaussianKernel(sigma)
+  vertical_kernel = GaussianKernel(SIGMA)
   vertical_blur = convolve(image, vertical_kernel)
 
   # Then calculate the derivative in the other direction
-  horizontal_kernel = GaussianDerivative(sigma)
+  horizontal_kernel = GaussianDerivative(SIGMA)
   flipped_horizontal_kernel = np.transpose(horizontal_kernel)
   horizontal_gradient = convolve(vertical_blur, flipped_horizontal_kernel)
   return (vertical_blur, horizontal_gradient)
 
-def horizontal_gaussian(image, sigma):
+def horizontal_gaussian(image):
   # First perform a gaussian blur
-  vertical_kernel = GaussianKernel(sigma)
+  vertical_kernel = GaussianKernel(SIGMA)
   horizontal_kernel = np.transpose(vertical_kernel)
   horizontal_blur = convolve(image, horizontal_kernel)
 
   # Then calculate the derivative in the other direction
-  horizontal_kernel = GaussianDerivative(sigma)
+  horizontal_kernel = GaussianDerivative(SIGMA)
   vertical_gradient = convolve(horizontal_blur, horizontal_kernel)
   return (horizontal_blur, vertical_gradient)
 
-def covariance(image, vert_grad, horiz_grad, window):
+def covariance(image, vert_grad, horiz_grad):
   (height, width) = image.shape
   Z = np.zeros((height, width), dtype=object)
   for i in range(0, height):
@@ -90,7 +97,7 @@ def covariance(image, vert_grad, horiz_grad, window):
       iyy = 0
       ixy = 0
 
-      w = window // 2
+      w = WINDOW // 2
 
       for offseti in range(-w, w + 1):
         for offsetj in range(-w, w + 1):
@@ -108,7 +115,7 @@ def covariance(image, vert_grad, horiz_grad, window):
   
   return Z
 
-def find_corners(cov_mat, cornerness_val = 0.04):
+def find_corners(cov_mat, cornerness_val = CORNERNESS):
   (height, width) = cov_mat.shape
   features = []
   # For each pixel, calculate the eigen values based on covariance matrix
@@ -121,7 +128,7 @@ def find_corners(cov_mat, cornerness_val = 0.04):
 
   return features
 
-def get_top_features(features: list, k_values = 50, val_distance = 5):
+def get_top_features(features: list, k_values = KVAL, val_distance = MIN_DISTANCE):
   top_features = []
   feature_count = 0
 
@@ -151,10 +158,6 @@ def get_top_features(features: list, k_values = 50, val_distance = 5):
   return top_features
 
 def main():
-  # Program Constants
-  sigma = 0.6
-  window = 7
-
   # Get file
   Tk().withdraw()
   filename = askopenfilename()
@@ -163,11 +166,11 @@ def main():
   image = cv2.imread(filename, 0)
 
   # Calculate gaussian blur first
-  (vertical_blur, horiz_grad) = vertical_gaussian(image, sigma)
-  (horizontal_blur, vert_grad) = horizontal_gaussian(image, sigma)
+  (vertical_blur, horiz_grad) = vertical_gaussian(image)
+  (horizontal_blur, vert_grad) = horizontal_gaussian(image)
 
   # Calculate covariance on the gradients of both vertical and horizontal
-  cov_mat = covariance(image, vert_grad, horiz_grad, window)
+  cov_mat = covariance(image, vert_grad, horiz_grad)
 
   # Then get the features
   feature_list = find_corners(cov_mat)
