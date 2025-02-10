@@ -51,7 +51,7 @@ def train_and_evaluate_knn(df, features, target, test_size, random_state):
 
     # Define the hyperparameter grid for GridSearchCV
     param_grid = {
-        'knn__n_neighbors': list(range(1, 31)),           # Number of neighbors from 1 to 30
+        'knn__n_neighbors': list(range(1, 31, 2)),           # Number of neighbors from 1 to 30
         'knn__weights': ['uniform', 'distance'],          # Weight function options
         'knn__p': [1, 2],                                 # 1: Manhattan, 2: Euclidean
         'knn__algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']
