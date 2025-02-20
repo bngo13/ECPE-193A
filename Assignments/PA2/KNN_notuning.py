@@ -1,6 +1,7 @@
 # General Imports
 import pandas as pd
 import numpy as np
+import glob
 
 # Model Utils
 from sklearn.preprocessing import LabelEncoder
@@ -20,17 +21,19 @@ from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_sc
 
 def main():
     # Read CSV
-    newdf = read_csv()
-    target = newdf.columns[0]
+    master_df = read_csv()
+    target = master_df.columns[8]
 
     # Get features from CSV
     features = []
-    for feature in newdf.columns[1:]:
+    for feature in master_df.columns:
+        if feature == target:
+            continue
         features.append(feature)
 
     # Split dataset and create scaled alternatives
     scaler = StandardScaler()
-    X_train, X_test, y_train, y_test, le = split_dataset(newdf, features, target, 0.3, 42)
+    X_train, X_test, y_train, y_test, le = split_dataset(master_df, features, target, 0.3, 42)
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.fit_transform(X_test)
 
@@ -58,10 +61,18 @@ def main():
 
 
 def read_csv():
-    # TODO Change reading logic here
-    df = pd.read_csv("cancer.csv")
-    newdf = df.dropna()
-    newdf = newdf.drop('id', axis=1)
+    csv_files = glob.glob("./*.csv")
+
+    csv_dfs = [pd.read_csv(file) for file in csv_files]
+
+    for i in range(1, len(csv_dfs)):
+        csv_dfs[i].columns = csv_dfs[i -1].columns
+
+    main_df = pd.concat([csv_dfs[0], csv_dfs[1]], ignore_index=False)
+
+    # Cleanup
+    newdf = main_df.dropna()
+    newdf = newdf.drop('filename', axis=1)
     newdf = newdf.drop_duplicates()
 
     return newdf
@@ -72,7 +83,6 @@ def split_dataset(df, features, target, test_size, random_state):
     le = LabelEncoder()
     df[target] = le.fit_transform(df[target])  # Encode target variable
     y = df[target]
-
     # Comment here:
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
 
@@ -173,15 +183,15 @@ def test_dataset(model, X_test, y_test, model_name):
         print(f"\tAccuracy: {accuracy:.2f}")
 
         # Recall
-        recall = recall_score(y_test,  y_pred)
+        recall = recall_score(y_test,  y_pred, average="weighted")
         print(f"\tRecall: {recall:.2f}")
 
         # Precision
-        precision = precision_score(y_test, y_pred)
+        precision = precision_score(y_test, y_pred, average="weighted")
         print(f"\tPrecision: {precision:.2f}")
 
         # F1
-        f1 = f1_score(y_test, y_pred)
+        f1 = f1_score(y_test, y_pred, average="weighted")
         print(f"\tF1: {f1:.2f}")
 
         print()
