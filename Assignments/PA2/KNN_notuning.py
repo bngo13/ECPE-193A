@@ -138,8 +138,8 @@ def train_svm(X_train, y_train):
     svm = SVM()
 
     param_grid = {
-        'C': [100, 200, 300], # How close the line gets to the values
-        'kernel': ['poly', 'rbf'], # Type of data fitting. RBF = circle
+        'C': [100, 125, 150], # How close the line gets to the values
+        'kernel': ['linear', 'poly', 'rbf'], # Type of data fitting. RBF = circle
         'degree': [1, 2, 3], # How many degrees for the lines
     }
 
