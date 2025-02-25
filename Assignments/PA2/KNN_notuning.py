@@ -19,6 +19,10 @@ from sklearn.ensemble import RandomForestClassifier as RandomForest
 # Scoring
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
 
+# Visual Scoring
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+
 def main():
     # Read CSV
     master_df = read_csv()
@@ -59,22 +63,48 @@ def main():
     print("Testing scaled models...")
     test_dataset([svm_trained, knn_trained], X_test_scaled, y_test, ["SVM", "KNN"])
 
+    plt.show()
 
 def read_csv():
+    # Load CSV files and read them into a CSV DF
     csv_files = glob.glob("./*.csv")
-
     csv_dfs = [pd.read_csv(file) for file in csv_files]
 
-    for i in range(1, len(csv_dfs)):
-        csv_dfs[i].columns = csv_dfs[i -1].columns
+    # Preprocessing Time!!!
+    processed_dfs = []
+    for df in csv_dfs:
+        # Only keep 11 columns
+        df = df[df.columns[:11]]
+        
+        # Force column names
+        df.columns = ["filename", "xcenter", "ycenter", "area", "eccentricity", "angle", "perimeter", "Hue", "Saturation", "Class", "Temperature"]
 
-    main_df = pd.concat([csv_dfs[0], csv_dfs[1]], ignore_index=False)
+        processed_dfs.append(df)
 
-    # Cleanup
-    newdf = main_df.dropna()
-    newdf = newdf.drop('filename', axis=1)
+    main_df = pd.DataFrame()
+    for df in processed_dfs:
+        main_df = pd.concat([main_df, df])
+
+    # Post concat cleanup
+    newdf = main_df.drop('filename', axis=1)
     newdf = newdf.drop_duplicates()
 
+    # Filter out entries that don't have a valid class
+    newdf = newdf[newdf["Class"].isin(["head", "torso", "arm", "leg", "car engine", "Tire", "noise"])]
+
+    # NaN non number values
+    newdf = newdf[pd.to_numeric(newdf["xcenter"], errors="coerce").notnull()]
+    newdf = newdf[pd.to_numeric(newdf["ycenter"], errors="coerce").notnull()]
+    newdf = newdf[pd.to_numeric(newdf["area"], errors="coerce").notnull()]
+    newdf = newdf[pd.to_numeric(newdf["eccentricity"], errors="coerce").notnull()]
+    newdf = newdf[pd.to_numeric(newdf["angle"], errors="coerce").notnull()]
+    newdf = newdf[pd.to_numeric(newdf["perimeter"], errors="coerce").notnull()]
+    newdf = newdf[pd.to_numeric(newdf["Hue"], errors="coerce").notnull()]
+    newdf = newdf[pd.to_numeric(newdf["Saturation"], errors="coerce").notnull()]
+    newdf = newdf[pd.to_numeric(newdf["Temperature"], errors="coerce").notnull()]
+
+    # Drop all NaN
+    newdf = newdf.dropna(how='any')
     return newdf
 
 def split_dataset(df, features, target, test_size, random_state):
@@ -93,9 +123,9 @@ def train_decision_tree(X_train, y_train):
     dt = DecisionTree()
 
     param_grid = {
-        'splitter': ['random'],
-        'max_depth': [10, 20, 30, 40, 50],
-        'max_features': [None, 'sqrt', 'log2']
+        'criterion': ['gini', 'entropy'],  # Criterion to measure the quality of a split
+        'max_depth': [10, 20, 30, 40, 50],  # Maximum depth of the tree
+        'splitter': ['best', 'random']  # Strategy to choose the split at each node
     }
 
     model = GridSearchCV(dt, param_grid, cv=5, scoring='accuracy', n_jobs=-1)
@@ -108,11 +138,9 @@ def train_svm(X_train, y_train):
     svm = SVM()
 
     param_grid = {
-        'C': [0.001, 0.01, 0.1, 1, 10, 100, 1000],
-        'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
-        'gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1, 10, 100],
-        'degree': [2, 3, 4, 5],
-        'shrinking': [True, False]
+        'C': [100, 200, 300], # How close the line gets to the values
+        'kernel': ['poly', 'rbf'], # Type of data fitting. RBF = circle
+        'degree': [1, 2, 3], # How many degrees for the lines
     }
 
     model = GridSearchCV(svm, param_grid, cv=5, scoring='accuracy', n_jobs=-1)
@@ -127,7 +155,7 @@ def train_naive_bayes(X_train, y_train):
     nb = NaiveBayes()
 
     param_grid = {
-        'var_smoothing': [1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3]
+        'var_smoothing': [1e-11, 1e-10, 1e-9] # Smooth the curve to allow for numbers further from distribution mean to be accounted for
     }
 
     model = GridSearchCV(nb, param_grid, cv=5, scoring='accuracy', n_jobs=-1)
@@ -142,10 +170,9 @@ def train_knn(X_train, y_train):
     knn = KNN()
 
     param_grid = {
-        'n_neighbors': [3, 5, 7, 9, 11, 15, 21],
-        'weights': ['uniform', 'distance'],
-        'metric': ['euclidean', 'manhattan'],
-        'leaf_size': [10, 20, 30, 40, 50],
+        'n_neighbors': [3, 5, 7, 9, 11, 15, 21], # How many neighbors to consider
+        'weights': ['uniform', 'distance'], # Weights of points may be dependent on the distance from the point
+        'metric': ['euclidean', 'manhattan'], # What distance algorithm to use
     }
 
     model = GridSearchCV(knn, param_grid, cv=5, scoring='accuracy', n_jobs=-1)
@@ -160,11 +187,9 @@ def train_random_forest(X_train, y_train):
     rf = RandomForest()
 
     param_grid = {
-        'n_estimators': [50, 100, 200, 500],
-        'max_depth': [None, 10, 20, 30],
-        # 'min_samples_split': [2, 5, 10],
-        # 'min_samples_leaf': [1, 2, 4],
-        # 'max_features': ['sqrt', 'log2', None],
+        'n_estimators': [50, 100, 200], # Number of estimations to run in total
+        'max_depth': [15, 20, 25, 30], # Max depth of the tree
+        'max_features': ['sqrt', 'log2'], # Limit a given split to use a subset of the original features
     }
     
     model = GridSearchCV(rf, param_grid, cv=5, scoring='accuracy', n_jobs=-1)
@@ -193,6 +218,13 @@ def test_dataset(model, X_test, y_test, model_name):
         # F1
         f1 = f1_score(y_test, y_pred, average="weighted")
         print(f"\tF1: {f1:.2f}")
+
+        # Visualize
+        cm = confusion_matrix(y_test, y_pred)
+        cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.unique(y_test))
+        cm_display.plot(cmap=plt.cm.Blues)
+        cm_display.ax_.set_title(current_name)
+        plt.title(f"{current_name} Confusion Matrix")
 
         print()
 
