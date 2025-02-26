@@ -56,12 +56,12 @@ def main():
 
     # Test non scaled models
     print("Testing non scaled models...")
-    test_dataset([decision_tree_trained, naive_bayes_trained, random_forest_trained], X_test, y_test, ["Decision Tree", "Naive Bayes", "Random Forest"])
+    test_dataset([decision_tree_trained, naive_bayes_trained, random_forest_trained], X_test, y_test, ["Decision Tree", "Naive Bayes", "Random Forest"], le)
     print()
 
     # Test scaled models
     print("Testing scaled models...")
-    test_dataset([svm_trained, knn_trained], X_test_scaled, y_test, ["SVM", "KNN"])
+    test_dataset([svm_trained, knn_trained], X_test_scaled, y_test, ["SVM", "KNN"], le)
 
     plt.show()
 
@@ -138,8 +138,8 @@ def train_svm(X_train, y_train):
     svm = SVM()
 
     param_grid = {
-        'C': [100, 125, 150], # How close the line gets to the values
-        'kernel': ['linear', 'poly', 'rbf'], # Type of data fitting. RBF = circle
+        'C': [125], # How close the line gets to the values
+        # 'kernel': ['linear', 'poly', 'rbf'], # Type of data fitting. RBF = circle
         'degree': [1, 2, 3], # How many degrees for the lines
     }
 
@@ -198,7 +198,7 @@ def train_random_forest(X_train, y_train):
     print("\tBest Random Forest hyperparameters:", model.best_params_)
     return model.best_estimator_
 
-def test_dataset(model, X_test, y_test, model_name):
+def test_dataset(model, X_test, y_test, model_name, le):
     for current_model, current_name in zip(model, model_name):
         print(f"--Testing {current_name}--")
         y_pred = current_model.predict(np.copy(X_test))
@@ -221,7 +221,7 @@ def test_dataset(model, X_test, y_test, model_name):
 
         # Visualize
         cm = confusion_matrix(y_test, y_pred)
-        cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.unique(y_test))
+        cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.unique(le.inverse_transform(y_test)))
         cm_display.plot(cmap=plt.cm.Blues)
         cm_display.ax_.set_title(current_name)
         plt.title(f"{current_name} Confusion Matrix")
