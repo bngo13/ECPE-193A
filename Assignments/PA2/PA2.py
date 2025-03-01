@@ -22,6 +22,7 @@ from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_sc
 # Visual Scoring
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import seaborn as sns
 
 def main():
     # Read CSV
@@ -35,13 +36,28 @@ def main():
             continue
         features.append(feature)
 
+    # Label Data
+    le = label_dataset(master_df, target)
+
+    # Create Correlation Matrix
+    corr_mat = master_df.corr()
+    print("Close the correlation matrix window to continue...")
+    plt.figure(figsize=(10,8))
+    sns.heatmap(corr_mat, annot=True, cmap='coolwarm', square=True)
+    plt.title("Correlation Matrix")
+    plt.xlabel("Feature Index")
+    plt.ylabel("Feature Index")
+    plt.tight_layout()
+    plt.show()
+
     # Split dataset and create scaled alternatives
     scaler = StandardScaler()
-    X_train, X_test, y_train, y_test, le = split_dataset(master_df, features, target, 0.3, 42)
+    X_train, X_test, y_train, y_test = split_dataset(master_df, features, target, 0.3, 42)
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.fit_transform(X_test)
 
     # Train models that do not need scaling
+    print("\n-- Training Phase --\n")
     print("Training non scaled models...")
     decision_tree_trained = train_decision_tree(np.copy(X_train), np.copy(y_train))
     naive_bayes_trained = train_naive_bayes(np.copy(X_train), np.copy(y_train))
@@ -55,6 +71,7 @@ def main():
     print()
 
     # Test non scaled models
+    print("\n-- Testing Phase --\n")
     print("Testing non scaled models...")
     test_dataset([decision_tree_trained, naive_bayes_trained, random_forest_trained], X_test, y_test, ["Decision Tree", "Naive Bayes", "Random Forest"], le)
     print()
@@ -70,7 +87,11 @@ def read_csv():
     csv_files = glob.glob("./*.csv")
     csv_dfs = [pd.read_csv(file) for file in csv_files]
 
+    if len(csv_files) == 0:
+        raise Exception("Error: No files found in current folder for parsing")
+
     # Preprocessing Time!!!
+    print("\n-- Exploratory Data Analysis Phase --\n")
     processed_dfs = []
     for df in csv_dfs:
         # Only keep 11 columns
@@ -80,17 +101,20 @@ def read_csv():
         df.columns = ["filename", "xcenter", "ycenter", "area", "eccentricity", "angle", "perimeter", "Hue", "Saturation", "Class", "Temperature"]
 
         processed_dfs.append(df)
-
+    
     main_df = pd.DataFrame()
     for df in processed_dfs:
         main_df = pd.concat([main_df, df])
+    newdf = main_df.drop('filename', axis=1)
+    print(f"Shape of data before cleaning {main_df.shape}")
     
     # Post concat cleanup
-    newdf = main_df.drop('filename', axis=1)
     newdf = newdf.drop_duplicates()
+    print(f"Shape of data after dropping duplicates {newdf.shape}")
 
     # Filter out entries that don't have a valid class
     newdf = newdf[newdf["Class"].isin(["head", "torso", "arm", "leg", "car engine", "Tire", "noise"])]
+    print(f"Shape of data after cleaning classes {newdf.shape}")
 
     # NaN non number values
     newdf = newdf[pd.to_numeric(newdf["xcenter"], errors="coerce").notnull()]
@@ -105,18 +129,21 @@ def read_csv():
 
     # Drop all NaN
     newdf = newdf.dropna(how='any')
+    print(f"Shape of data after removing non number values from columns {newdf.shape}")
     return newdf
 
 def split_dataset(df, features, target, test_size, random_state):
-    # Comment here:
     X = df[features]
-    le = LabelEncoder()
-    df[target] = le.fit_transform(df[target])  # Encode target variable
     y = df[target]
-    # Comment here:
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
 
-    return X_train, X_test, y_train, y_test, le
+    return X_train, X_test, y_train, y_test
+
+def label_dataset(df, target):
+    le = LabelEncoder()
+    df[target] = le.fit_transform(df[target])
+
+    return le
 
 def train_decision_tree(X_train, y_train):
     print("-> Training Decision Trees <-")
@@ -219,7 +246,7 @@ def test_dataset(model, X_test, y_test, model_name, le):
         f1 = f1_score(y_test, y_pred, average="weighted")
         print(f"\tF1: {f1:.2f}")
 
-        # Visualize
+        # Visualize Confusion Matrix
         cm = confusion_matrix(y_test, y_pred)
         cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.unique(le.inverse_transform(y_test)))
         cm_display.plot(cmap=plt.cm.Blues)
