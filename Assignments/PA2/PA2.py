@@ -84,7 +84,7 @@ def read_csv():
     main_df = pd.DataFrame()
     for df in processed_dfs:
         main_df = pd.concat([main_df, df])
-
+    
     # Post concat cleanup
     newdf = main_df.drop('filename', axis=1)
     newdf = newdf.drop_duplicates()
@@ -138,8 +138,8 @@ def train_svm(X_train, y_train):
     svm = SVM()
 
     param_grid = {
-        'C': [125], # How close the line gets to the values
-        # 'kernel': ['linear', 'poly', 'rbf'], # Type of data fitting. RBF = circle
+        'C': [10, 50, 100, 115, 125, 150], # How close the line gets to the values
+        'kernel': ['poly', 'rbf', 'sigmoid'], # Type of data fitting. RBF = circle
         'degree': [1, 2, 3], # How many degrees for the lines
     }
 
@@ -155,7 +155,7 @@ def train_naive_bayes(X_train, y_train):
     nb = NaiveBayes()
 
     param_grid = {
-        'var_smoothing': [1e-11, 1e-10, 1e-9] # Smooth the curve to allow for numbers further from distribution mean to be accounted for
+        'var_smoothing': [1e-12, 1e-10, 1e-8] # Smooth the curve to allow for numbers further from distribution mean to be accounted for
     }
 
     model = GridSearchCV(nb, param_grid, cv=5, scoring='accuracy', n_jobs=-1)
