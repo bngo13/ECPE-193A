@@ -35,7 +35,7 @@ def gpu_version():
     # I'm guessing that it's cause of larger int padding that happens with int64s
     h_a = np.arange(0, vec_size, 1).astype(np.int32)
     h_b = np.arange(0, vec_size, 1).astype(np.int32)
-    h_c = np.empty((vec_size,))
+    h_c = np.empty((vec_size,)).astype(np.int32)
 
     # Allocate device pointers with the same size as the host lists
     d_a = drv.mem_alloc(h_a.nbytes)
@@ -74,18 +74,20 @@ def gpu_version():
     print(f"GPU | DtoH Time: {dtoh_time}")
 
     print(f"GPU | Total Time: {htod_time + kernel_time + dtoh_time}")
+    print(f"GPU | Results: {h_c[-15:]}")
 
 def cpu_version():
-    h_a = np.arange(0, vec_size, 1)
-    h_b = np.arange(0, vec_size, 1)
-    h_c = np.empty((vec_size,))
+    h_a = np.arange(0, vec_size, 1).astype(np.int32)
+    h_b = np.arange(0, vec_size, 1).astype(np.int32)
+    h_c = np.empty((vec_size,)).astype(np.int32)
 
     cpu_computation_start = time.time()
     for i in range(0, vec_size):
-        h_c = h_a[i] + h_b[i]
+        h_c[i] = h_a[i] + h_b[i]
     cpu_computation_end = time.time()
 
     print(f"CPU | Total Time: {cpu_computation_end - cpu_computation_start}")
+    print(f"CPU | Results: {h_c[-15:]}")
 
 def main():
     args()
