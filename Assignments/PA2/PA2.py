@@ -41,6 +41,10 @@ def main():
 
     # Create Correlation Matrix
     corr_mat = master_df.corr()
+    print(f"Correlation features sorted by highest correlation to lowest correlation:")
+    print(f"{corr_mat['Class'].sort_values(ascending=False)}")
+
+    # Show Correlation Matrix
     print("Close the correlation matrix window to continue...")
     plt.figure(figsize=(10,8))
     sns.heatmap(corr_mat, annot=True, cmap='coolwarm', square=True)
