@@ -13,7 +13,6 @@ __global__ void matrixmul_kernel(float *d_A, float *d_B, float *d_C, int width) 
 
     int bx = blockIdx.x;
     int by = blockIdx.y;
-
     int tx = threadIdx.x;
     int ty = threadIdx.y;
 
@@ -22,9 +21,21 @@ __global__ void matrixmul_kernel(float *d_A, float *d_B, float *d_C, int width) 
 
     float temp = 0;
 
-    for (int i = 0; i < width / TILEWIDTH; i++) {
-        Ashared[tx][ty] = d_A[row * width + i * TILEWIDTH + ty];
-        Bshared[tx][ty] = d_B[(i * TILEWIDTH + tx) * width + col];
+    int numTiles = (width + TILEWIDTH - 1) / TILEWIDTH;
+
+    for (int i = 0; i < numTiles; i++) {
+        Ashared[tx][ty] = 0.0f;
+        Bshared[tx][ty] = 0.0f;
+
+        // Load data into shared memory with bounds checking
+        if (row < width && i * TILEWIDTH + ty < width) {
+            Ashared[tx][ty] = d_A[row * width + i * TILEWIDTH + ty];
+        }
+
+        if (col < width && i * TILEWIDTH + tx < width) {
+            Bshared[tx][ty] = d_B[(i * TILEWIDTH + tx) * width + col];
+        }
+
         __syncthreads();
 
         for (int k = 0; k < TILEWIDTH; k++) {
@@ -32,7 +43,10 @@ __global__ void matrixmul_kernel(float *d_A, float *d_B, float *d_C, int width) 
         }
         __syncthreads();
     }
-    d_C[row * width + col] = temp;
+
+    if (row < width && col < width) {
+        d_C[row * width + col] = temp;
+    }
 }
 """)
 
