@@ -1,0 +1,129 @@
+import argparse
+import numpy as np
+import pycuda.autoinit
+import pycuda.driver as drv
+import time
+from pycuda.compiler import SourceModule
+
+gpu_kernel = SourceModule("""
+#define TILEWIDTH 16
+__global__ void matrixmul_kernel(float *d_A, float *d_B, float *d_C, int width) {
+    __shared__ float Ashared[TILEWIDTH][TILEWIDTH];
+    __shared__ float Bshared[TILEWIDTH][TILEWIDTH];
+
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    int row = bx * TILEWIDTH + tx;
+    int col = by * TILEWIDTH + ty;
+
+    float temp = 0;
+
+    for (int i = 0; i < width / TILEWIDTH; i++) {
+        Ashared[tx][ty] = d_A[row * width + i * TILEWIDTH + ty];
+        Bshared[tx][ty] = d_B[(i * TILEWIDTH + tx) * width + col];
+        __syncthreads();
+
+        for (int k = 0; k < TILEWIDTH; k++) {
+            temp += Ashared[tx][k] * Bshared[k][ty];
+        }
+        __syncthreads();
+    }
+    d_C[row * width + col] = temp;
+}
+""")
+
+matsize = 10_000
+
+def args():
+    global matsize
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--matsize", type=int, default=matsize)
+
+    args = parser.parse_args()
+    matsize = args.matsize
+
+    print(f"Running program with matrix size of {matsize:,}")
+
+def cpu_matmul(inmat1: np.matrix, inmat2: np.matrix):
+    inmat1 = inmat1.astype(np.float32)
+    inmat2 = inmat2.astype(np.float32)
+
+    # We **love** matrix multiplication
+    res = np.matmul(inmat1, inmat2)
+
+    return res
+
+def gpu_matmul(inmat1: np.ndarray, inmat2: np.ndarray):
+    # Get Prelim Sizes
+    width, _ = inmat1.shape
+
+    # Flatten literally everything
+    h_A = inmat1.flatten().astype(np.float32)
+    h_B = inmat2.flatten().astype(np.float32)
+    h_C = np.zeros((width * width,)).astype(np.float32)
+
+    # Allocate GPU memory
+    d_A = drv.mem_alloc(h_A.nbytes)
+    d_B = drv.mem_alloc(h_B.nbytes)
+    d_C = drv.mem_alloc(h_C.nbytes)
+
+    # Memcpy to gpu
+    drv.memcpy_htod(d_A, h_A)
+    drv.memcpy_htod(d_B, h_B)
+
+    # GPU Sizing Stuff
+    block_size = 16
+    grid_size = (width + block_size - 1) // block_size
+
+    # Get kernel and run it
+    gKernel = gpu_kernel.get_function("matrixmul_kernel")
+    width = np.int32(width)
+    kernel_start = time.time()
+    gKernel(d_A, d_B, d_C, width, block=(block_size, block_size, 1), grid=(grid_size, grid_size))
+    drv.Context.synchronize()
+    kernel_end = time.time()
+    print(f"GPU | Kernel: {kernel_end - kernel_start}")
+
+    # Grab Data
+    drv.memcpy_dtoh(h_C, d_C)
+    h_C = h_C.reshape((width, width))
+    return h_C
+
+def main():
+    # Inputs
+    args()
+    inmat1 = np.random.rand(matsize, matsize)
+    inmat2 = np.random.rand(matsize, matsize)
+
+    # Run GPU Matrix Mult
+    gpu_start = time.time()
+    gpu_res = gpu_matmul(inmat1, inmat2)
+    gpu_end = time.time()
+    print(f"GPU |   Time: {gpu_end - gpu_start}")
+
+    # Run CPU Matrix Multiplication
+    cpu_start = time.time()
+    cpu_res = cpu_matmul(inmat1, inmat2)
+    cpu_end = time.time()
+    print(f"CPU |   Time: {cpu_end - cpu_start}")
+
+    print()
+
+
+    # Compare Results
+    print("-- CPU Results --")
+    print(cpu_res)
+    print()
+
+    print ("-- GPU Results -- ")
+    print(gpu_res)
+    print()
+
+    print(f"All values are equal: {np.allclose(cpu_res, gpu_res, 1e-3)}")
+
+if __name__ == "__main__":
+    main()
