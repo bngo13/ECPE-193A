@@ -80,7 +80,21 @@ def gpu_matmul(inmat1: np.ndarray, inmat2: np.ndarray):
     h_C = h_C.reshape((width, width))
     return h_C
 
+def choose_gpu():
+    student_id = 989400138
+    drv.init()
+
+    num_gpus = drv.Device.count()
+
+    gpu_index = student_id % num_gpus
+
+    print(f"GPU Index: {gpu_index}")
+
+    drv.Device(gpu_index)
+
 def main():
+    choose_gpu()
+
     # Inputs
     args()
     inmat1 = np.random.rand(matsize, matsize)
