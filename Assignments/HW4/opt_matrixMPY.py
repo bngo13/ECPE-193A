@@ -67,7 +67,7 @@ def cpu_matmul(inmat1: np.matrix, inmat2: np.matrix):
     inmat2 = inmat2.astype(np.float32)
 
     # We **love** matrix multiplication
-    res = np.matmul(inmat1, inmat2)
+    res = np.dot(inmat1, inmat2)
 
     return res
 
