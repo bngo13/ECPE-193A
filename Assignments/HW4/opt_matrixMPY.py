@@ -100,7 +100,7 @@ def gpu_matmul(inmat1: np.ndarray, inmat2: np.ndarray):
     gKernel(d_A, d_B, d_C, width, block=(block_size, block_size, 1), grid=(grid_size, grid_size))
     drv.Context.synchronize()
     kernel_end = time.time()
-    print(f"GPU | Kernel: {kernel_end - kernel_start}")
+    print(f"GPU | Time: {kernel_end - kernel_start}")
 
     # Grab Data
     drv.memcpy_dtoh(h_C, d_C)
@@ -128,10 +128,7 @@ def main():
     inmat2 = np.random.rand(matsize, matsize)
 
     # Run GPU Matrix Mult
-    gpu_start = time.time()
     gpu_res = gpu_matmul(inmat1, inmat2)
-    gpu_end = time.time()
-    print(f"GPU |   Time: {gpu_end - gpu_start}")
 
     # Run CPU Matrix Multiplication
     cpu_start = time.time()
