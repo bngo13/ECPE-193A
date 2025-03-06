@@ -50,7 +50,7 @@ __global__ void matrixmul_kernel(float *d_A, float *d_B, float *d_C, int width) 
 }
 """)
 
-matsize = 10_000
+matsize = 1_000
 
 def args():
     global matsize
@@ -137,7 +137,7 @@ def main():
     cpu_start = time.time()
     cpu_res = cpu_matmul(inmat1, inmat2)
     cpu_end = time.time()
-    print(f"CPU |   Time: {cpu_end - cpu_start}")
+    print(f"CPU | Time: {cpu_end - cpu_start}")
 
     print()
 
