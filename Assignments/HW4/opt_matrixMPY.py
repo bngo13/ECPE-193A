@@ -6,7 +6,7 @@ import time
 from pycuda.compiler import SourceModule
 
 gpu_kernel = SourceModule("""
-#define TILEWIDTH 16
+#define TILEWIDTH 32
 __global__ void matrixmul_kernel(float *d_A, float *d_B, float *d_C, int width) {
     __shared__ float Ashared[TILEWIDTH][TILEWIDTH];
     __shared__ float Bshared[TILEWIDTH][TILEWIDTH];
@@ -92,7 +92,7 @@ def gpu_matmul(inmat1: np.ndarray, inmat2: np.ndarray):
     drv.Context.synchronize()
 
     # GPU Sizing Stuff
-    block_size = 16
+    block_size = 32
     grid_size = (width + block_size - 1) // block_size
 
     # Get kernel and run it
