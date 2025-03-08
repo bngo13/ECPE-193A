@@ -58,7 +58,6 @@ def gpu_matmul(inmat1: np.ndarray, inmat2: np.ndarray):
     d_A = drv.mem_alloc(h_A.nbytes)
     d_B = drv.mem_alloc(h_B.nbytes)
     d_C = drv.mem_alloc(h_C.nbytes)
-    drv.Context.synchronize()
 
     # Memcpy to gpu
     drv.memcpy_htod(d_A, h_A)
@@ -66,7 +65,7 @@ def gpu_matmul(inmat1: np.ndarray, inmat2: np.ndarray):
     drv.Context.synchronize()
 
     # GPU Sizing Stuff
-    block_size = 32
+    block_size = 8
     grid_size = (width + block_size - 1) // block_size
 
     # Get kernel and run it
@@ -80,7 +79,6 @@ def gpu_matmul(inmat1: np.ndarray, inmat2: np.ndarray):
 
     # Grab Data
     drv.memcpy_dtoh(h_C, d_C)
-    drv.Context.synchronize()
     h_C = h_C.reshape((width, width))
     return h_C
 

@@ -6,7 +6,7 @@ import time
 from pycuda.compiler import SourceModule
 
 gpu_kernel = SourceModule("""
-#define TILEWIDTH 16
+#define TILEWIDTH 28
 __global__ void matrixmul_kernel(float *d_A, float *d_B, float *d_C, int width) {
     __shared__ float Ashared[TILEWIDTH][TILEWIDTH];
     __shared__ float Bshared[TILEWIDTH][TILEWIDTH];
@@ -24,6 +24,7 @@ __global__ void matrixmul_kernel(float *d_A, float *d_B, float *d_C, int width) 
     int numTiles = (width + TILEWIDTH - 1) / TILEWIDTH;
 
     for (int i = 0; i < numTiles; i++) {
+        __syncthreads();
         Ashared[tx][ty] = 0.0f;
         Bshared[tx][ty] = 0.0f;
 
@@ -41,7 +42,6 @@ __global__ void matrixmul_kernel(float *d_A, float *d_B, float *d_C, int width) 
         for (int k = 0; k < TILEWIDTH; k++) {
             temp += Ashared[tx][k] * Bshared[k][ty];
         }
-        __syncthreads();
     }
 
     if (row < width && col < width) {
@@ -84,7 +84,6 @@ def gpu_matmul(inmat1: np.ndarray, inmat2: np.ndarray):
     d_A = drv.mem_alloc(h_A.nbytes)
     d_B = drv.mem_alloc(h_B.nbytes)
     d_C = drv.mem_alloc(h_C.nbytes)
-    drv.Context.synchronize()
 
     # Memcpy to gpu
     drv.memcpy_htod(d_A, h_A)
@@ -92,7 +91,7 @@ def gpu_matmul(inmat1: np.ndarray, inmat2: np.ndarray):
     drv.Context.synchronize()
 
     # GPU Sizing Stuff
-    block_size = 16
+    block_size = 28
     grid_size = (width + block_size - 1) // block_size
 
     # Get kernel and run it
