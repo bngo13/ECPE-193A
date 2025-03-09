@@ -65,7 +65,7 @@ def gpu_matmul(inmat1: np.ndarray, inmat2: np.ndarray):
     drv.Context.synchronize()
 
     # GPU Sizing Stuff
-    block_size = 8
+    block_size = 8 # Number with the most performance
     grid_size = (width + block_size - 1) // block_size
 
     # Get kernel and run it
