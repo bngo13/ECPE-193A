@@ -24,7 +24,7 @@ __global__ void convolution(int *image, int *convImg, float *kernel, int imageHe
     //  }
     //}
 
-    convImg[row * imageHeight + col] = row * imageHeight + col;
+    convImg[row * imageHeight + col] = image[row * imageHeight + col];
   }
 }
 """
