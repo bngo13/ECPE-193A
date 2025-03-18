@@ -164,8 +164,8 @@ def vertical_gaussian():
     # Testing
     image = np.array([[1,2,3],[1,2,3],[1,2,3]])
 
-    (vert_kernel_height, vert_kernel_width) = vertical_kernel.shape
-    (image_height, image_width) = image.shape
+    (vert_kernel_width, vert_kernel_height) = vertical_kernel.shape
+    (image_width, image_height) = image.shape
 
 
     vertical_kernel_flat = vertical_kernel.flatten().astype(np.float32)
