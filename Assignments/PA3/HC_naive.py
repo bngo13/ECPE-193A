@@ -12,19 +12,19 @@ __global__ void convolution(int *image, int *convImg, float *kernel, int imageHe
   int col = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (col < imageWidth && row < imageHeight) {
-    int sum = 0;
-    for (int ki = 0; ki < kernelHeight; ki++) {
-      for (int kj = 0; kj < kernelWidth; kj++) {
-        int offset_i = -1 * (kernelHeight / 2) + ki;
-        int offset_j = -1 * (kernelWidth / 2) + kj;
+    //int sum = 0;
+    //for (int ki = 0; ki < kernelHeight; ki++) {
+    //  for (int kj = 0; kj < kernelWidth; kj++) {
+    //    int offset_i = -1 * (kernelHeight / 2) + ki;
+    //    int offset_j = -1 * (kernelWidth / 2) + kj;
+//
+    //    if (row + offset_i >= 0 && row + offset_i < imageHeight && col + offset_j >= 0 && col + offset_j < imageWidth) {
+    //      sum += image[imageHeight * (row + offset_i) + col + offset_j] * kernel[ki * kernelHeight + kj];
+    //    }
+    //  }
+    //}
 
-        if (row + offset_i >= 0 && row + offset_i < imageHeight && col + offset_j >= 0 && col + offset_j < imageWidth) {
-          sum += image[imageHeight * (row + offset_i) + col + offset_j] * kernel[ki * kernelHeight + kj];
-        }
-      }
-    }
-
-    convImg[row * imageHeight + col] = sum;
+    convImg[row * imageHeight + col] = 1;
   }
 }
 """
