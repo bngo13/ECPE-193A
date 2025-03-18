@@ -161,6 +161,9 @@ def vertical_gaussian():
     # Get kernel
     vertical_kernel = GaussianKernel()
 
+    # Testing
+    image = np.array([[1,2,3],[1,2,3],[1,2,3]])
+
     (vert_kernel_height, vert_kernel_width) = vertical_kernel.shape
     (image_height, image_width) = image.shape
 
