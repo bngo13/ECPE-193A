@@ -16,10 +16,10 @@ __global__ void convolution(int *image, int *convImg, float *kernel, int imageHe
     
     for (int ki = 0; ki < kernelHeight; ki++) {
       for (int kj = 0; kj < kernelWidth; kj++) {
-        offset_i = -1 * (kernelHeight / 2) + ki;
-        offset_j = -1 * (kernelWidth / 2) + kj;
-        pixel_i = i + offset_i;
-        pixel_j = j + offset_j;
+        int offset_i = -1 * (kernelHeight / 2) + ki;
+        int offset_j = -1 * (kernelWidth / 2) + kj;
+        int pixel_i = i + offset_i;
+        int pixel_j = j + offset_j;
         if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < kernelHeight && pixel_j < kernelWidth) {
           pixel_sum += image[pixel_i * imageHeight + pixel_j] * kernel[ki * kernelHeight + kj];
         }
