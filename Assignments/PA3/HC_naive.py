@@ -8,13 +8,25 @@ from pycuda.compiler import SourceModule
 gpu_kernels = SourceModule(
 """
 __global__ void convolution(int *image, int *convImg, float *kernel, int imageHeight, int imageWidth, int kernelHeight, int kernelWidth) {
-  int row = blockIdx.x * blockDim.x + threadIdx.x;
-  int col = blockIdx.y * blockDim.y + threadIdx.y;
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (row < imageWidth && col < imageHeight) {
-    // int sum = 0;
+  if (i < imageHeight && col < imageWidth) {
+    int pixel_sum = 0;
     
-    convImg[row * imageHeight + col] = row * imageHeight + col;
+    for (int ki = 0; ki < kernelHeight; ki++) {
+      for (int kj = 0; kj < kernelWidth; kj++) {
+        offset_i = -1 * (kernelHeight / 2) + ki;
+        offset_j = -1 * (kernelWidth / 2) + kj;
+        pixel_i = i + offset_i;
+        pixel_j = j + offset_j;
+        if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < kernelHeight && pixel_j < kernelWidth) {
+          pixel_sum += image[pixel_i * imageHeight + pixel_j] * kernel[ki * kernelHeight + kj];
+        }
+      }
+    }
+
+    convImg[i * imageHeight + col] = pixel_sum
   }
 }
 """
