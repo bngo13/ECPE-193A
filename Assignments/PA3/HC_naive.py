@@ -21,7 +21,7 @@ __global__ void convolution(int *image, int *convImg, float *kernel, int imageHe
         int pixel_i = i + offset_i;
         int pixel_j = j + offset_j;
         if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < imageHeight && pixel_j < imageWidth) {
-          pixel_sum += kernel[ki * kernelHeight + kj];
+          pixel_sum += image[pixel_i * imageHeight + pixel_j];
         }
       }
     }
@@ -151,7 +151,6 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
 
   convolution = gpu_kernels.get_function("convolution")
 
-  breakpoint()
   convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_size, grid_size))
   drv.Context.synchronize()
 
