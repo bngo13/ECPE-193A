@@ -5,7 +5,7 @@ import pycuda.driver as drv
 import time
 from pycuda.compiler import SourceModule
 
-convolution_kernel = SourceModule(
+gpu_kernels = SourceModule(
 """
 __global__ void convolution(int *image, int *convImg, float *kernel, int imageHeight, int imageWidth, int kernelHeight, int kernelWidth) {
   int row = blockIdx.x * blockDim.x + threadIdx.x;
@@ -147,7 +147,7 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
 
   grid_size = int((max(image_height, image_width) + block - 1) // block)
 
-  convolution = convolution_kernel.get_function("convolution")
+  convolution = gpu_kernels.get_function("convolution")
 
   convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_size, grid_size))
   drv.Context.synchronize()
