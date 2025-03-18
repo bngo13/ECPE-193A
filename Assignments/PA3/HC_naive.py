@@ -7,8 +7,25 @@ from pycuda.compiler import SourceModule
 
 convolution_kernel = SourceModule(
 """
-__global__ void convolution(int *image, float *kernel, int imageWidth, int imageHeight, int kernelWidth, int kernelHeight) {
+__global__ void convolution(int *image, int *convImg, float *kernel, int imageHeight, int imageWidth, int kernelHeight, int kernelWidth) {
+  int row = blockIdx.x * blockDim.x + threadIdx.x;
+  int col = blockIdx.y * blockDim.y + threadIdx.y;
 
+  if (row < imageWidth && col < imageHeight) {
+    int sum = 0;
+    for (int ki = 0; ki < kernelHeight; ki++) {
+      for (int kj = 0; kj < kernelWidth; kj++) {
+        int offset_i = -1 * (kernelHeight / 2) + ki;
+        int offset_j = -1 * (kernelWidth / 2) + kj;
+
+        if (row + offset_i >= 0 && row + offset_i < imageHeight && col + offset_j >= 0 && col + offset_j < imageWidth) {
+          sum += image[imageHeight * (row + offset_i) + col + offset_j] * kernel[ki * kernelHeight + kj];
+        }
+      }
+    }
+
+    convImg[row * imageHeight + col] = sum;
+  }
 }
 """
 )
@@ -110,9 +127,49 @@ def GaussianDerivative():
   G = G / total
   return G
 
+def convolve(image, kernel, image_height, image_width, kernel_height, kernel_width):
+  image_height = np.int32(image_height)
+  image_width = np.int32(image_width)
+  kernel_height = np.int32(kernel_height)
+  kernel_width = np.int32(kernel_width)
+
+  convImg = np.zeros((image_height * image_width,)).astype(np.int32)
+
+  d_image = drv.mem_alloc(image.nbytes)
+  d_kernel = drv.mem_alloc(kernel.nbytes)
+  d_convImg = drv.mem_alloc(convImg.nbytes)
+  drv.Context.synchronize()
+
+  drv.memcpy_htod(d_image, image)
+  drv.memcpy_htod(d_kernel, kernel)
+  # drv.memcpy_htod(d_convImg, convImg) # Don't need since convImg doesn't have any data
+  drv.Context.synchronize()
+
+  grid_size = int((max(image_height, image_width) + block - 1) // block)
+
+  convolution = convolution_kernel.get_function("convolution")
+
+  convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_size, grid_size))
+  drv.Context.synchronize()
+
+  drv.memcpy_dtoh(convImg, d_convImg)
+  drv.Context.synchronize()
+  convImg = convImg.reshape((image_height, image_width))
+  return convImg
+
 def vertical_gaussian():
-    # First perform a gaussian blur
-    vertical_kernel = GaussianKernel(sigma)
+    # Get kernel
+    vertical_kernel = GaussianKernel()
+
+    (vert_kernel_height, vert_kernel_width) = vertical_kernel.shape
+    (image_height, image_width) = image.shape
+
+
+    vertical_kernel_flat = vertical_kernel.flatten().astype(np.float32)
+    image_flat = image.flatten().astype(np.int32)
+    vertical_blur = convolve(image_flat, vertical_kernel_flat, image_height, image_width, vert_kernel_height, vert_kernel_width)
+
+    breakpoint()
 
 def horizontal_gaussian(image):
    pass
