@@ -26,7 +26,7 @@ __global__ void convolution(int *image, int *convImg, float *kernel, int imageHe
       }
     }
 
-    convImg[i * imageHeight + j] = pixel_sum
+    convImg[i * imageHeight + j] = pixel_sum;
   }
 }
 """
