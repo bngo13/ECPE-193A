@@ -11,20 +11,10 @@ __global__ void convolution(int *image, int *convImg, float *kernel, int imageHe
   int row = blockIdx.x * blockDim.x + threadIdx.x;
   int col = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (row < imageWidth && col < imageHeight) {
-    //int sum = 0;
-    //for (int ki = 0; ki < kernelHeight; ki++) {
-    //  for (int kj = 0; kj < kernelWidth; kj++) {
-    //    int offset_i = -1 * (kernelHeight / 2) + ki;
-    //    int offset_j = -1 * (kernelWidth / 2) + kj;
-//
-    //    if (row + offset_i >= 0 && row + offset_i < imageHeight && col + offset_j >= 0 && col + offset_j < imageWidth) {
-    //      sum += image[imageHeight * (row + offset_i) + col + offset_j] * kernel[ki * kernelHeight + kj];
-    //    }
-    //  }
-    //}
-
-    convImg[row * imageHeight + col] = image[row * imageHeight + col];
+  if (row < imageHeight && col < imageWidth) {
+    // int sum = 0;
+    
+    convImg[row * imageHeight + col] = row * imageHeight + col;
   }
 }
 """
@@ -162,7 +152,7 @@ def vertical_gaussian():
     vertical_kernel = GaussianKernel()
 
     # Testing
-    image = np.array([[1,2,3],[1,2,3],[1,2,3]])
+    image = np.array([[1,2,3],[1,2,3]])
 
     (vert_kernel_height, vert_kernel_width) = vertical_kernel.shape
     (image_height, image_width) = image.shape
