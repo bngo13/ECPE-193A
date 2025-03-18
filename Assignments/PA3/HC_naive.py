@@ -11,7 +11,7 @@ __global__ void convolution(int *image, int *convImg, float *kernel, int imageHe
   int row = blockIdx.x * blockDim.x + threadIdx.x;
   int col = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (row < imageHeight && col < imageWidth) {
+  if (row < imageWidth && col < imageHeight) {
     // int sum = 0;
     
     convImg[row * imageHeight + col] = row * imageHeight + col;
