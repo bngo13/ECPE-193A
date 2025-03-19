@@ -1,4 +1,5 @@
 import argparse
+import cv2
 import numpy as np
 import pycuda.autoinit
 import pycuda.driver as drv
@@ -7,7 +8,7 @@ from pycuda.compiler import SourceModule
 
 gpu_kernels = SourceModule(
 r"""
-__global__ void convolution(int *image, int *convImg, float *kernel, int imageHeight, int imageWidth, int kernelHeight, int kernelWidth) {
+__global__ void convolution(float *image, float *convImg, float *kernel, int imageHeight, int imageWidth, int kernelHeight, int kernelWidth) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -31,8 +32,44 @@ __global__ void convolution(int *image, int *convImg, float *kernel, int imageHe
         }
       }
     }
-    convImg[i * imageWidth + j] = (int)pixel_sum;
+    convImg[i * imageWidth + j] = pixel_sum;
   }
+}
+
+__global__ void covariance(int *image, int *vert_grad, int *horiz_grad, int64_t *cov_mat, int image_height, int image_width, int window) {
+    // Initialize Vars
+    int64_t ixx = 0;
+    int64_t iyy = 0;
+    int64_t ixy = 0;
+    int w = window / 2;
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (i < image_height && j < image_width) {
+        for (int offset_i = -w; offset_i < w + 1; offset_i++) {
+            for (int offset_j = -w; offset_j < w + 1; offset_j++) {
+                int pixel_i = i + offset_i;
+                int pixel_j = j + offset_j;
+
+                if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < image_height && pixel_j < image_width) {
+                    int64_t vert = vert_grad[pixel_i * image_width + pixel_j];
+                    int64_t horiz = horiz_grad[pixel_i * image_width + pixel_j];
+
+                    ixx += vert * vert;
+                    iyy += horiz * horiz;
+                    ixy += vert * horiz;
+                }
+            }
+        }
+        // Save the matrix values with an offset of 4 per pixel. Legit couldn't find a way to double pointer this so this is a workaround.
+        int index = (i * image_width + j) * 4;
+        cov_mat[index + 0] = ixx;
+        cov_mat[index + 1] = ixy;
+        cov_mat[index + 2] = ixy;
+        cov_mat[index + 3] = iyy;
+
+    }
 }
 """
 )
@@ -42,6 +79,10 @@ image = None
 sigma = None
 hcwin = None
 block = None
+
+CORNERNESS = 0.04
+KVAL = 50
+MIN_DISTANCE = 5
 
 def imread(filename):
     with open(filename, 'rb') as f:
@@ -141,7 +182,8 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
   kernel_width = np.int32(kernel_width)
 
   # Create Convolved Image
-  convImg = np.zeros((image_height * image_width,)).astype(np.int32)
+  convImg = np.zeros((image_height * image_width,)).astype(np.float32)
+  image = image.astype(np.float32)
 
   # Allocate Memory
   d_image = drv.mem_alloc(image.nbytes)
@@ -156,9 +198,10 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
   drv.Context.synchronize()
 
   # Run Convolution
-  grid_size = int((max(image_height, image_width) + block - 1) // block)
+  grid_x = int((image_width + block - 1) // block)
+  grid_y = int((image_height + block - 1) // block)
   convolution = gpu_kernels.get_function("convolution")
-  convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_size, grid_size))
+  convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_x, grid_y))
   drv.Context.synchronize()
 
   # Get data
@@ -177,7 +220,7 @@ def vertical_gaussian():
 
     # Flatten and convolve
     vertical_kernel_flat = vertical_kernel.flatten().astype(np.float32)
-    image_flat = image.flatten().astype(np.int32)
+    image_flat = image.flatten().astype(np.float32)
     vertical_blur = convolve(image_flat, vertical_kernel_flat, image_height, image_width, vert_kernel_height, vert_kernel_width)
 
     ## Horizontal Gaussian Derivative ##
@@ -189,7 +232,7 @@ def vertical_gaussian():
     
     # Flatten and convolve
     horizontal_kernel_flat = horizontal_kernel.flatten().astype(np.float32)
-    blur_flat = vertical_blur.flatten().astype(np.int32)
+    blur_flat = vertical_blur.flatten().astype(np.float32)
     horizontal_gradient = convolve(blur_flat, horizontal_kernel_flat, blur_height, blur_width, h_kernel_height, h_kernel_width)
     return (vertical_blur.astype(np.uint8), horizontal_gradient.astype(np.uint8))
 
@@ -204,7 +247,7 @@ def horizontal_gaussian():
 
     # Flatten and convolve
     vertical_kernel_flat = vertical_kernel.flatten().astype(np.float32)
-    image_flat = image.flatten().astype(np.int32)
+    image_flat = image.flatten().astype(np.float32)
     horizontal_blur = convolve(image_flat, vertical_kernel_flat, img_h, img_w, v_kernel_h, v_kernel_w)
 
     ## Vertical Gaussian Derivative ##
@@ -216,19 +259,112 @@ def horizontal_gaussian():
     
     # Flatten then convolve
     kernel_flat = horizontal_kernel.flatten().astype(np.float32)
-    blur_flat = horizontal_blur.flatten().astype(np.int32)
+    blur_flat = horizontal_blur.flatten().astype(np.float32)
     vertical_gradient = convolve(blur_flat, kernel_flat, blur_h, blur_w, h_kernel_h, h_kernel_w)
     return (horizontal_blur.astype(np.uint8), vertical_gradient.astype(np.uint8))
+
+def covariance(vert_grad, horiz_grad):
+    (image_height, image_width) = image.shape
+
+    image_height = np.int32(image_height)
+    image_width = np.int32(image_width)
+    window = np.int32(hcwin)
+
+    # Flatten everything
+    img = image.flatten().astype(np.int32)
+    vert_grad = vert_grad.flatten().astype(np.int32)
+    horiz_grad = horiz_grad.flatten().astype(np.int32)
+    cov_mat = np.zeros((image_height, image_width, 2, 2)).flatten().astype(np.int64)
+
+    # Mallocs
+    d_image = drv.mem_alloc(img.nbytes)
+    d_vert = drv.mem_alloc(vert_grad.nbytes)
+    d_horiz = drv.mem_alloc(horiz_grad.nbytes)
+    d_cov_mat = drv.mem_alloc(cov_mat.nbytes)
+    drv.Context.synchronize()
+
+    # Memcpys
+    drv.memcpy_htod(d_image, img)
+    drv.memcpy_htod(d_vert, vert_grad)
+    drv.memcpy_htod(d_horiz, horiz_grad)
+    drv.Context.synchronize()
+
+    # Run the thing
+    grid_size = int((max(image_height, image_width) + block - 1) // block)
+    covariance_gpu = gpu_kernels.get_function("covariance")
+    covariance_gpu(d_image, d_vert, d_horiz, d_cov_mat, image_height, image_width, window, block=(block, block, 1), grid=(grid_size, grid_size))
+    drv.Context.synchronize()
+
+    # Grab data
+    drv.memcpy_dtoh(cov_mat, d_cov_mat)
+    drv.Context.synchronize()
+    cov_mat = cov_mat.reshape((image_height, image_width, 2, 2))
+    return cov_mat
+
+def find_corners(cov_mat, cornerness_val = CORNERNESS):
+  features = []
+
+  # For each pixel, calculate the eigen values based on covariance matrix
+  evals, _ = np.linalg.eig(cov_mat)
+  (h, w, _) = evals.shape
+  for i in range(0, h):
+     for j in range(0, w):
+        val = (evals[i][j][0] * evals[i][j][1]) - (cornerness_val * ((evals[i][j][0] + evals[i][j][1]) ** 2))
+        features.append((i, j, val))
+
+  return features
+
+def get_top_features(features: list, k_values = KVAL, val_distance = MIN_DISTANCE):
+  top_features = []
+  feature_count = 0
+
+  # Sort the features first
+  sorted_features = sorted(features, key = lambda item : item[2], reverse=True)
+
+  # For each feature, make sure the features chosen are at least val_distance away from each other
+  for feature in sorted_features:
+    # Keep going until k_values is hit
+    if len(top_features) >= k_values:
+      return top_features
+    
+    addable = True
+    for existing_features in top_features:
+      # Manhatten Distance Eq
+      distance = abs(existing_features[1] - feature[1]) + abs(existing_features[0] - feature[0])
+      if distance < val_distance:
+        addable = False
+        break
+    
+    if not addable:
+      continue
+      
+    feature_count += 1
+    top_features.append(feature)
+
+  return top_features
 
 def main():
     get_args()
     parse_args()
 
+    print("Calculating Gradients")
     (vertical_blur, horiz_grad) = vertical_gaussian()
     (horizontal_blur, vert_grad) = horizontal_gaussian()
 
-    breakpoint()
-    pass
+    print("Calculating Covariance")
+    cov_mat = covariance(vert_grad, horiz_grad)
+
+    print("Getting Corners")
+    feature_list = find_corners(cov_mat)
+
+    print("Getting Features")
+    top_features = get_top_features(feature_list)
+
+    img = image.copy()
+    for (y,x, _) in top_features:
+        cv2.putText(img, 'X', (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
+
+    imwrite(f"test.pgm", img)
 
 if __name__ == "__main__":
     main()
