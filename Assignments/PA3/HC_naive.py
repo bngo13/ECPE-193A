@@ -6,27 +6,32 @@ import time
 from pycuda.compiler import SourceModule
 
 gpu_kernels = SourceModule(
-"""
+r"""
 __global__ void convolution(int *image, int *convImg, float *kernel, int imageHeight, int imageWidth, int kernelHeight, int kernelWidth) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (i < imageHeight && j < imageWidth) {
-    int pixel_sum = 0;
-    
+    float pixel_sum = 0.0;
+
     for (int ki = 0; ki < kernelHeight; ki++) {
       for (int kj = 0; kj < kernelWidth; kj++) {
+        // Calculate offsets based on kernel
         int offset_i = -1 * (kernelHeight / 2) + ki;
         int offset_j = -1 * (kernelWidth / 2) + kj;
+
+        // Get the image index based on the offset
         int pixel_i = i + offset_i;
         int pixel_j = j + offset_j;
+
+        // Calculate Gradient
         if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < imageHeight && pixel_j < imageWidth) {
-          pixel_sum = kernelHeight;
+          float blurredPixel = image[pixel_i * imageWidth + pixel_j] * kernel[ki * kernelWidth + kj];
+          pixel_sum += blurredPixel;
         }
       }
     }
-
-    convImg[i * imageHeight + j] = pixel_sum;
+    convImg[i * imageWidth + j] = (int)pixel_sum;
   }
 }
 """
@@ -135,49 +140,85 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
   kernel_height = np.int32(kernel_height)
   kernel_width = np.int32(kernel_width)
 
+  # Create Convolved Image
   convImg = np.zeros((image_height * image_width,)).astype(np.int32)
 
+  # Allocate Memory
   d_image = drv.mem_alloc(image.nbytes)
   d_kernel = drv.mem_alloc(kernel.nbytes)
   d_convImg = drv.mem_alloc(convImg.nbytes)
   drv.Context.synchronize()
 
+  # Memcpy data
   drv.memcpy_htod(d_image, image)
   drv.memcpy_htod(d_kernel, kernel)
   # drv.memcpy_htod(d_convImg, convImg) # Don't need since convImg doesn't have any data
   drv.Context.synchronize()
 
+  # Run Convolution
   grid_size = int((max(image_height, image_width) + block - 1) // block)
-
   convolution = gpu_kernels.get_function("convolution")
-
   convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_size, grid_size))
   drv.Context.synchronize()
 
+  # Get data
   drv.memcpy_dtoh(convImg, d_convImg)
   drv.Context.synchronize()
   convImg = convImg.reshape((image_height, image_width))
+
   return convImg
 
 def vertical_gaussian():
+    ## Vertical Gaussian Blur ##
     # Get kernel
     vertical_kernel = GaussianKernel()
-
-    # Testing
-    image = np.array([[1,2,3],[1,2,3], [1,2,3]])
-
     (vert_kernel_height, vert_kernel_width) = vertical_kernel.shape
     (image_height, image_width) = image.shape
 
-
+    # Flatten and convolve
     vertical_kernel_flat = vertical_kernel.flatten().astype(np.float32)
     image_flat = image.flatten().astype(np.int32)
     vertical_blur = convolve(image_flat, vertical_kernel_flat, image_height, image_width, vert_kernel_height, vert_kernel_width)
 
-    breakpoint()
+    ## Horizontal Gaussian Derivative ##
+    # Get kernel
+    horizontal_kernel = GaussianDerivative()
+    horizontal_kernel = np.transpose(horizontal_kernel)
+    (h_kernel_height, h_kernel_width) = horizontal_kernel.shape
+    (blur_height, blur_width) = vertical_blur.shape
+    
+    # Flatten and convolve
+    horizontal_kernel_flat = horizontal_kernel.flatten().astype(np.float32)
+    blur_flat = vertical_blur.flatten().astype(np.int32)
+    horizontal_gradient = convolve(blur_flat, horizontal_kernel_flat, blur_height, blur_width, h_kernel_height, h_kernel_width)
+    return (vertical_blur.astype(np.uint8), horizontal_gradient.astype(np.uint8))
 
-def horizontal_gaussian(image):
-   pass
+def horizontal_gaussian():
+    ## Horizontal Gaussian Blur ##
+
+    # Get Kernel
+    vertical_kernel = GaussianKernel()
+    vertical_kernel = np.transpose(vertical_kernel)
+    (v_kernel_h, v_kernel_w) = vertical_kernel.shape
+    (img_h, img_w) = image.shape
+
+    # Flatten and convolve
+    vertical_kernel_flat = vertical_kernel.flatten().astype(np.float32)
+    image_flat = image.flatten().astype(np.int32)
+    horizontal_blur = convolve(image_flat, vertical_kernel_flat, img_h, img_w, v_kernel_h, v_kernel_w)
+
+    ## Vertical Gaussian Derivative ##
+
+    # Get Kernel
+    horizontal_kernel = GaussianDerivative()
+    (h_kernel_h, h_kernel_w) = horizontal_kernel.shape
+    (blur_h, blur_w) = horizontal_blur.shape
+    
+    # Flatten then convolve
+    kernel_flat = horizontal_kernel.flatten().astype(np.float32)
+    blur_flat = horizontal_blur.flatten().astype(np.int32)
+    vertical_gradient = convolve(blur_flat, kernel_flat, blur_h, blur_w, h_kernel_h, h_kernel_w)
+    return (horizontal_blur.astype(np.uint8), vertical_gradient.astype(np.uint8))
 
 def main():
     get_args()
