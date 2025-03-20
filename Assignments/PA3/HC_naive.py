@@ -146,70 +146,70 @@ def parse_args():
     image = imread(image_path)
 
 def GaussianKernel():
-  # Calc a vertical gaussian kernel
-  a = int(2.5 * sigma - 0.5)
-  width = 2*a+1
+    # Calc a vertical gaussian kernel
+    a = int(2.5 * sigma - 0.5)
+    width = 2*a+1
 
-  total = 0
+    total = 0
 
-  G = np.zeros((width,1))
-  for i in range(0,width):
-    G[i] = np.exp((-1 * (i-a) * (i-a)) / (2 * sigma * sigma))
-    total = total + G[i]
+    G = np.zeros((width,1))
+    for i in range(0,width):
+        G[i] = np.exp((-1 * (i-a) * (i-a)) / (2 * sigma * sigma))
+        total = total + G[i]
 
-  G = G / total
-  return G
+    G = G / total
+    return G
 
 def GaussianDerivative():
-  # Calc a vertical derivative gaussian kernel
-  a = int(2.5 * sigma - 0.5)
-  width = 2 * a + 1
+    # Calc a vertical derivative gaussian kernel
+    a = int(2.5 * sigma - 0.5)
+    width = 2 * a + 1
 
-  total=0
+    total=0
 
-  G = np.zeros((width,1))
-  for i in range(0,width):
-    G[i] = (-1 * (i-a) * np.exp((-1 * (i-a) * (i-a)) / (2 * sigma * sigma)))
-    total = total - i * G[i]
+    G = np.zeros((width,1))
+    for i in range(0,width):
+        G[i] = (-1 * (i-a) * np.exp((-1 * (i-a) * (i-a)) / (2 * sigma * sigma)))
+        total = total - i * G[i]
 
-  G = G / total
-  return G
+    G = G / total
+    return G
 
 def convolve(image, kernel, image_height, image_width, kernel_height, kernel_width):
-  image_height = np.int32(image_height)
-  image_width = np.int32(image_width)
-  kernel_height = np.int32(kernel_height)
-  kernel_width = np.int32(kernel_width)
+    image_height = np.int32(image_height)
+    image_width = np.int32(image_width)
+    kernel_height = np.int32(kernel_height)
+    kernel_width = np.int32(kernel_width)
 
-  # Create Convolved Image
-  convImg = np.zeros((image_height * image_width,)).astype(np.float32)
-  image = image.astype(np.float32)
+    # Create Convolved Image
+    convImg = np.zeros((image_height * image_width,)).astype(np.float32)
+    image = image.astype(np.float32)
 
-  # Allocate Memory
-  d_image = drv.mem_alloc(image.nbytes)
-  d_kernel = drv.mem_alloc(kernel.nbytes)
-  d_convImg = drv.mem_alloc(convImg.nbytes)
-  drv.Context.synchronize()
+    # Allocate Memory
+    d_image = drv.mem_alloc(image.nbytes)
+    d_kernel = drv.mem_alloc(kernel.nbytes)
+    d_convImg = drv.mem_alloc(convImg.nbytes)
+    drv.Context.synchronize()
 
-  # Memcpy data
-  drv.memcpy_htod(d_image, image)
-  drv.memcpy_htod(d_kernel, kernel)
-  # drv.memcpy_htod(d_convImg, convImg) # Don't need since convImg doesn't have any data
-  drv.Context.synchronize()
+    # Memcpy data
+    drv.memcpy_htod(d_image, image)
+    drv.memcpy_htod(d_kernel, kernel)
+    # drv.memcpy_htod(d_convImg, convImg) # Don't need since convImg doesn't have any data
+    drv.Context.synchronize()
 
-  # Run Convolution
-  grid_x = int((image_width + block - 1) // block)
-  grid_y = int((image_height + block - 1) // block)
-  convolution = gpu_kernels.get_function("convolution")
-  convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_x, grid_y))
-  drv.Context.synchronize()
+    # Run Convolution
+    grid_x = int((image_width + block - 1) // block)
+    grid_y = int((image_height + block - 1) // block)
+    convolution = gpu_kernels.get_function("convolution")
+    convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_x, grid_y))
+    drv.Context.synchronize()
 
-  # Get data
-  drv.memcpy_dtoh(convImg, d_convImg)
-  drv.Context.synchronize()
-  convImg = convImg.reshape((image_height, image_width))
+    # Get data
+    drv.memcpy_dtoh(convImg, d_convImg)
+    drv.Context.synchronize()
+    convImg = convImg.reshape((image_height, image_width))
 
-  return convImg
+    return convImg
 
 def vertical_gaussian():
     ## Vertical Gaussian Blur ##
@@ -302,46 +302,46 @@ def covariance(vert_grad, horiz_grad):
     return cov_mat
 
 def find_corners(cov_mat, cornerness_val = CORNERNESS):
-  features = []
+    features = []
 
-  # For each pixel, calculate the eigen values based on covariance matrix
-  evals, _ = np.linalg.eig(cov_mat)
-  (h, w, _) = evals.shape
-  for i in range(0, h):
-     for j in range(0, w):
-        val = (evals[i][j][0] * evals[i][j][1]) - (cornerness_val * ((evals[i][j][0] + evals[i][j][1]) ** 2))
-        features.append((i, j, val))
+    # For each pixel, calculate the eigen values based on covariance matrix
+    evals, _ = np.linalg.eig(cov_mat)
+    (h, w, _) = evals.shape
+    for i in range(0, h):
+        for j in range(0, w):
+            val = (evals[i][j][0] * evals[i][j][1]) - (cornerness_val * ((evals[i][j][0] + evals[i][j][1]) ** 2))
+            features.append((i, j, val))
 
-  return features
+    return features
 
 def get_top_features(features: list, k_values = KVAL, val_distance = MIN_DISTANCE):
-  top_features = []
-  feature_count = 0
+    top_features = []
+    feature_count = 0
 
-  # Sort the features first
-  sorted_features = sorted(features, key = lambda item : item[2], reverse=True)
+    # Sort the features first
+    sorted_features = sorted(features, key = lambda item : item[2], reverse=True)
 
   # For each feature, make sure the features chosen are at least val_distance away from each other
-  for feature in sorted_features:
-    # Keep going until k_values is hit
-    if len(top_features) >= k_values:
-      return top_features
+    for feature in sorted_features:
+        # Keep going until k_values is hit
+        if len(top_features) >= k_values:
+            return top_features
+        
+        addable = True
+        for existing_features in top_features:
+        # Manhatten Distance Eq
+            distance = abs(existing_features[1] - feature[1]) + abs(existing_features[0] - feature[0])
+            if distance < val_distance:
+                addable = False
+                break
     
-    addable = True
-    for existing_features in top_features:
-      # Manhatten Distance Eq
-      distance = abs(existing_features[1] - feature[1]) + abs(existing_features[0] - feature[0])
-      if distance < val_distance:
-        addable = False
-        break
-    
-    if not addable:
-      continue
+        if not addable:
+            continue
       
-    feature_count += 1
-    top_features.append(feature)
+        feature_count += 1
+        top_features.append(feature)
 
-  return top_features
+    return top_features
 
 def main():
     get_args()
