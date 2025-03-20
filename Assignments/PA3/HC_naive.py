@@ -361,14 +361,14 @@ def main():
     top_features = get_top_features(feature_list)
 
     img = image.copy()
-    with open('test.txt', 'w') as f:
+    with open('corners.txt', 'w') as f:
       for (y,x, _) in top_features:
         f.write(f"{x} {y}\n")
 
-    # import cv2
-    # for (y,x, _) in top_features:
-    #     cv2.putText(img, 'X', (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
-    #     imwrite(f"test.pgm", img)
+    import cv2
+    for (y,x, _) in top_features:
+        cv2.putText(img, 'X', (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
+        imwrite(f"corners.pgm", img)
 
 if __name__ == "__main__":
     main()
