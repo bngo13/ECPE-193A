@@ -9,31 +9,32 @@ from pycuda.compiler import SourceModule
 gpu_kernels = SourceModule(
 r"""
 __global__ void convolution(float *image, float *convImg, float *kernel, int imageHeight, int imageWidth, int kernelHeight, int kernelWidth) {
-  int i = blockIdx.x * blockDim.x + threadIdx.x;
-  int j = blockIdx.y * blockDim.y + threadIdx.y;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (i < imageHeight && j < imageWidth) {
     float pixel_sum = 0.0;
 
     for (int ki = 0; ki < kernelHeight; ki++) {
-      for (int kj = 0; kj < kernelWidth; kj++) {
-        // Calculate offsets based on kernel
-        int offset_i = -1 * (kernelHeight / 2) + ki;
-        int offset_j = -1 * (kernelWidth / 2) + kj;
+        for (int kj = 0; kj < kernelWidth; kj++) {
+            // Calculate offsets based on kernel
+            int offset_i = -1 * (kernelHeight / 2) + ki;
+            int offset_j = -1 * (kernelWidth / 2) + kj;
 
-        // Get the image index based on the offset
-        int pixel_i = i + offset_i;
-        int pixel_j = j + offset_j;
+            // Get the image index based on the offset
+            int pixel_i = i + offset_i;
+            int pixel_j = j + offset_j;
 
-        // Calculate Gradient
-        if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < imageHeight && pixel_j < imageWidth) {
-          float blurredPixel = image[pixel_i * imageWidth + pixel_j] * kernel[ki * kernelWidth + kj];
-          pixel_sum += blurredPixel;
+            // Calculate Gradient
+            if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < imageHeight && pixel_j < imageWidth) {
+                float blurredPixel = image[pixel_i * imageWidth + pixel_j] * kernel[ki * kernelWidth + kj];
+                pixel_sum += blurredPixel;
+            }
         }
-      }
     }
-    convImg[i * imageWidth + j] = pixel_sum;
-  }
+
+    if (i < imageHeight && j < imageWidth) {
+        convImg[i * imageWidth + j] = pixel_sum;
+    }
 }
 
 __global__ void covariance(int *image, int *vert_grad, int *horiz_grad, int64_t *cov_mat, int image_height, int image_width, int window) {
@@ -46,29 +47,32 @@ __global__ void covariance(int *image, int *vert_grad, int *horiz_grad, int64_t 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (i < image_height && j < image_width) {
-        for (int offset_i = -w; offset_i < w + 1; offset_i++) {
-            for (int offset_j = -w; offset_j < w + 1; offset_j++) {
-                int pixel_i = i + offset_i;
-                int pixel_j = j + offset_j;
+    for (int offset_i = -w; offset_i < w + 1; offset_i++) {
+        for (int offset_j = -w; offset_j < w + 1; offset_j++) {
+            int pixel_i = i + offset_i;
+            int pixel_j = j + offset_j;
+            int64_t vert = 0;
+            int64_t horiz = 0;
+            int idx = pixel_i * image_width + pixel_j;
 
-                if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < image_height && pixel_j < image_width) {
-                    int64_t vert = vert_grad[pixel_i * image_width + pixel_j];
-                    int64_t horiz = horiz_grad[pixel_i * image_width + pixel_j];
-
-                    ixx += vert * vert;
-                    iyy += horiz * horiz;
-                    ixy += vert * horiz;
-                }
+            if (idx >= 0 && pixel_i < image_height && pixel_j < image_width) {
+              vert = vert_grad[idx];
+              horiz = horiz_grad[idx];
             }
+
+            ixx += vert * vert;
+            iyy += horiz * horiz;
+            ixy += vert * horiz;
         }
+    }
+
+    if (i < image_height && j < image_width) {
         // Save the matrix values with an offset of 4 per pixel. Legit couldn't find a way to double pointer this so this is a workaround.
         int index = (i * image_width + j) * 4;
         cov_mat[index + 0] = ixx;
         cov_mat[index + 1] = ixy;
         cov_mat[index + 2] = ixy;
         cov_mat[index + 3] = iyy;
-
     }
 }
 """
@@ -361,14 +365,17 @@ def main():
     top_features = get_top_features(feature_list)
 
     img = image.copy()
-    with open('corners.txt', 'w') as f:
-      for (y,x, _) in top_features:
-        f.write(f"{x} {y}\n")
+    # with open('corners.txt', 'w') as f:
+    #   for (y,x, _) in top_features:
+    #     f.write(f"{x} {y}\n")
 
-    # import cv2
-    # for (y,x, _) in top_features:
-    #     cv2.putText(img, 'X', (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
-    #     imwrite(f"corners.pgm", img)
+    import cv2
+    for (y,x, _) in top_features:
+        cv2.putText(img, 'X', (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
+    
+    cv2.imshow("Corners", img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()
