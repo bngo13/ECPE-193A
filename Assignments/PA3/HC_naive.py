@@ -196,21 +196,30 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
     drv.Context.synchronize()
 
     # Memcpy data
+    ts = time.time()
     drv.memcpy_htod(d_image, image)
     drv.memcpy_htod(d_kernel, kernel)
     # drv.memcpy_htod(d_convImg, convImg) # Don't need since convImg doesn't have any data
     drv.Context.synchronize()
+    te = time.time()
+    # print(f"Convolve HTOD Time:     {te - ts}")
 
     # Run Convolution
     grid_x = int((image_width + block - 1) // block)
     grid_y = int((image_height + block - 1) // block)
+    ts = time.time()
     convolution = gpu_kernels.get_function("convolution")
     convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_x, grid_y))
     drv.Context.synchronize()
+    te = time.time()
+    # print(f"Convoltion Kernel Time: {te - ts}")
 
     # Get data
+    ts = time.time()
     drv.memcpy_dtoh(convImg, d_convImg)
     drv.Context.synchronize()
+    te = time.time()
+    # print(f"Convolve DTOH Time:     {te - ts}")
     convImg = convImg.reshape((image_height, image_width))
 
     return convImg
@@ -288,20 +297,29 @@ def covariance(vert_grad, horiz_grad):
     drv.Context.synchronize()
 
     # Memcpys
+    ts = time.time()
     drv.memcpy_htod(d_image, img)
     drv.memcpy_htod(d_vert, vert_grad)
     drv.memcpy_htod(d_horiz, horiz_grad)
     drv.Context.synchronize()
+    te = time.time()
+    print(f"Covariance HTOD Time:   {te - ts}")
 
     # Run the thing
     grid_size = int((max(image_height, image_width) + block - 1) // block)
     covariance_gpu = gpu_kernels.get_function("covariance")
+    ts = time.time()
     covariance_gpu(d_image, d_vert, d_horiz, d_cov_mat, image_height, image_width, window, block=(block, block, 1), grid=(grid_size, grid_size))
     drv.Context.synchronize()
+    te = time.time()
+    print(f"Covariance Kernel Time: {te - ts}")
 
     # Grab data
+    ts = time.time()
     drv.memcpy_dtoh(cov_mat, d_cov_mat)
     drv.Context.synchronize()
+    te = time.time()
+    print(f"Covariance DTOH Time:   {te - ts}")
     cov_mat = cov_mat.reshape((image_height, image_width, 2, 2))
     return cov_mat
 
@@ -352,11 +370,15 @@ def main():
     parse_args()
 
     print("Calculating Gradients")
+    ts = time.time()
     (vertical_blur, horiz_grad) = vertical_gaussian()
     (horizontal_blur, vert_grad) = horizontal_gaussian()
 
     print("Calculating Covariance")
     cov_mat = covariance(vert_grad, horiz_grad)
+    te = time.time()
+
+    print(f"GPU Total Time:         {te - ts}")
 
     print("Getting Corners")
     feature_list = find_corners(cov_mat)
