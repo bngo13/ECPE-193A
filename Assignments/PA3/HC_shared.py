@@ -105,7 +105,7 @@ __global__ void covariance(int *image, int *vert_grad, int *horiz_grad, int64_t 
 
             if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < image_height && pixel_j < image_width) {
                 int index = pixel_i * image_width + pixel_j;
-                int cond = local_offset_i < TILEWIDTH && local_offset_j < TILEWIDTH;
+                int cond = local_offset_i >= 0 && local_offset_j >= 0 && local_offset_i < TILEWIDTH && local_offset_j < TILEWIDTH;
 
                 int64_t vert = cond ? VertShared[local_offset_i][local_offset_j] : vert_grad[index];
                 int64_t horiz = cond ? HoriShared[local_offset_i][local_offset_j] : horiz_grad[index];
