@@ -95,17 +95,20 @@ __global__ void covariance(int *image, int *vert_grad, int *horiz_grad, int64_t 
 
     for (int offset_i = -w; offset_i < w + 1; offset_i++) {
         for (int offset_j = -w; offset_j < w + 1; offset_j++) {
+            // Indexes for non shared mem
             int pixel_i = i + offset_i;
             int pixel_j = j + offset_j;
 
+            // Indexes for shared mem
+            int local_offset_i = local_i + offset_i;
+            int local_offset_j = local_j + offset_j;
+
             if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < image_height && pixel_j < image_width) {
                 int index = pixel_i * image_width + pixel_j;
-                int shared_pixel_i = pixel_i - blockIdx.x * blockDim.x;
-                int shared_pixel_j = pixel_j - blockIdx.y * blockDim.y;
-                int cond = shared_pixel_i < TILEWIDTH && shared_pixel_j < TILEWIDTH;
+                int cond = local_offset_i < TILEWIDTH && local_offset_j < TILEWIDTH;
 
-                int64_t vert = cond ? VertShared[shared_pixel_i][shared_pixel_j] : vert_grad[index];
-                int64_t horiz = cond ? HoriShared[shared_pixel_i][shared_pixel_j] : horiz_grad[index];
+                int64_t vert = cond ? VertShared[local_offset_i][local_offset_j] : vert_grad[index];
+                int64_t horiz = cond ? HoriShared[local_offset_i][local_offset_j] : horiz_grad[index];
 
                 ixx += vert * vert;
                 iyy += horiz * horiz;
