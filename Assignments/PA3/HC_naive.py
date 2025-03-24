@@ -395,9 +395,7 @@ def main():
     for (y,x, _) in top_features:
         cv2.putText(img, 'X', (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
     
-    cv2.imshow("Corners", img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    imwrite("corners.pgm", img)
 
 if __name__ == "__main__":
     main()
