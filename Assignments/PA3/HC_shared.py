@@ -84,7 +84,7 @@ __global__ void covariance(int *image, int *vert_grad, int *horiz_grad, int64_t 
 
 
     // Load image into shared memory
-    if (i < image_height && j < image_weight) {
+    if (i < image_height && j < image_width) {
         VertShared[local_i][local_j] = vert_grad[i * image_width + j];
         HoriShared[local_i][local_j] = horiz_grad[i * image_width + j];
     } else {
