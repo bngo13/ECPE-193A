@@ -84,12 +84,11 @@ __global__ void covariance(int *image, int *vert_grad, int *horiz_grad, int64_t 
 
 
     // Load image into shared memory
-    if (local_i < TILEWIDTH && local_j < TILEWIDTH) {
+    if (i < imageHeight && j < imageWidth) {
         VertShared[local_i][local_j] = vert_grad[i * image_width + j];
         HoriShared[local_i][local_j] = horiz_grad[i * image_width + j];
     } else {
-        VertShared[local_i][local_j] = 0.0f;  // Safe fallback for out-of-bound threads
-        HoriShared[local_i][local_j] = 0.0f;  // Safe fallback for out-of-bound threads
+        return;
     }
 
     __syncthreads();
