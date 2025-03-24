@@ -25,7 +25,7 @@ __global__ void convolution(float *image, float *convImg, float *kernel,
     if (i < imageHeight && j < imageWidth) {
         SharedImage[local_i][local_j] = image[i * imageWidth + j];
     } else {
-        SharedImage[local_i][local_j] = 0.0f;  // Safe fallback for out-of-bound threads
+        return;
     }
     __syncthreads();
 
@@ -87,6 +87,9 @@ __global__ void covariance(int *image, int *vert_grad, int *horiz_grad, int64_t 
     if (local_i < TILEWIDTH && local_j < TILEWIDTH) {
         VertShared[local_i][local_j] = vert_grad[i * image_width + j];
         HoriShared[local_i][local_j] = horiz_grad[i * image_width + j];
+    } else {
+        VertShared[local_i][local_j] = 0.0f;  // Safe fallback for out-of-bound threads
+        HoriShared[local_i][local_j] = 0.0f;  // Safe fallback for out-of-bound threads
     }
 
     __syncthreads();
