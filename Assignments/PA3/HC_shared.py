@@ -24,6 +24,7 @@ __global__ void convolution(float *image, float *convImg, float *kernel, int ima
         SharedImage[local_i][local_j] = image[i * imageWidth + j];
     }
     __syncthreads();
+    printf("Got past SHMMEM");
 
     float pixel_sum = 0.0;
 
