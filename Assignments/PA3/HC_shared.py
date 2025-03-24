@@ -10,7 +10,9 @@ gpu_kernels = SourceModule(
 r"""
 #define TILEWIDTH 32
 
-__global__ void convolution(float *image, float *convImg, float *kernel, int imageHeight, int imageWidth, int kernelHeight, int kernelWidth) {
+__global__ void convolution(float *image, float *convImg, float *kernel, 
+                            int imageHeight, int imageWidth, 
+                            int kernelHeight, int kernelWidth) {
     __shared__ float SharedImage[TILEWIDTH][TILEWIDTH];
 
     int local_i = threadIdx.x;
@@ -19,19 +21,21 @@ __global__ void convolution(float *image, float *convImg, float *kernel, int ima
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-    // Load image into shared memory
-    if (local_i < TILEWIDTH && local_j < TILEWIDTH) {
+    // Load image into shared memory with bounds check
+    if (i < imageHeight && j < imageWidth) {
         SharedImage[local_i][local_j] = image[i * imageWidth + j];
+    } else {
+        SharedImage[local_i][local_j] = 0.0f;  // Safe fallback for out-of-bound threads
     }
     __syncthreads();
 
-    float pixel_sum = 0.0;
+    float pixel_sum = 0.0f;
 
     for (int ki = 0; ki < kernelHeight; ki++) {
         for (int kj = 0; kj < kernelWidth; kj++) {
             // Calculate offsets based on kernel
-            int offset_i = -1 * (kernelHeight / 2) + ki;
-            int offset_j = -1 * (kernelWidth / 2) + kj;
+            int offset_i = - (kernelHeight / 2) + ki;
+            int offset_j = - (kernelWidth / 2) + kj;
 
             // Get the image index based on the offset
             int pixel_i = i + offset_i;
@@ -39,13 +43,17 @@ __global__ void convolution(float *image, float *convImg, float *kernel, int ima
 
             // Calculate Gradient
             if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < imageHeight && pixel_j < imageWidth) {
-                int local_pixel_i = local_i + offset_i;
-                int local_pixel_j = local_j + offset_j;
+                // Convert global indices to shared memory indices relative to this block
+                int shared_pixel_i = pixel_i - blockIdx.x * blockDim.x;
+                int shared_pixel_j = pixel_j - blockIdx.y * blockDim.y;
                 float blurredPixel = 0.0f;
-                if (local_pixel_i > 0 && local_pixel_j > 0 && local_pixel_i < TILEWIDTH && local_pixel_j < TILEWIDTH) {
-                    blurredPixel = kernel[ki * kernelWidth + kj];
+                if (shared_pixel_i >= 0 && shared_pixel_j >= 0 && 
+                    shared_pixel_i < TILEWIDTH && shared_pixel_j < TILEWIDTH) {
+                    blurredPixel = SharedImage[shared_pixel_i][shared_pixel_j] * 
+                                   kernel[ki * kernelWidth + kj];
                 } else {
-                    blurredPixel = image[pixel_i * imageWidth + pixel_j] * kernel[ki * kernelWidth + kj];
+                    blurredPixel = image[pixel_i * imageWidth + pixel_j] * 
+                                   kernel[ki * kernelWidth + kj];
                 }
                 pixel_sum += blurredPixel;
             }
@@ -56,6 +64,7 @@ __global__ void convolution(float *image, float *convImg, float *kernel, int ima
         convImg[i * imageWidth + j] = pixel_sum;
     }
 }
+
 
 __global__ void covariance(int *image, int *vert_grad, int *horiz_grad, int64_t *cov_mat, int image_height, int image_width, int window) {
     __shared__ int VertShared[TILEWIDTH][TILEWIDTH];
