@@ -39,11 +39,11 @@ __global__ void convolution(float *image, float *convImg, float *kernel, int ima
 
             // Calculate Gradient
             if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < imageHeight && pixel_j < imageWidth) {
-                int shared_pixel_i = pixel_i - blockIdx.x * blockDim.x;
-                int shared_pixel_j = pixel_j - blockIdx.y * blockDim.y;
+                int lpixel_i = local_i + offset_i;
+                int lpixel_j = local_j + offset_j;
                 float blurredPixel = 0.0f;
-                if (shared_pixel_i >= 0 && shared_pixel_j >= 0 && shared_pixel_i < TILEWIDTH && shared_pixel_j < TILEWIDTH) {
-                    blurredPixel = SharedImage[shared_pixel_i][shared_pixel_j] * kernel[ki * kernelWidth + kj];
+                if (lpixel_i >= 0 && lpixel_j >= 0 && lpixel_i < TILEWIDTH && lpixel_j < TILEWIDTH) {
+                    blurredPixel = SharedImage[lpixel_i][lpixel_j] * kernel[ki * kernelWidth + kj];
                 } else {
                     blurredPixel = image[pixel_i * imageWidth + pixel_j] * kernel[ki * kernelWidth + kj];
                 }
