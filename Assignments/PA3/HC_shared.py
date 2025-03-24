@@ -41,7 +41,7 @@ __global__ void convolution(float *image, float *convImg, float *kernel, int ima
             if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < imageHeight && pixel_j < imageWidth) {
                 float blurredPixel = 0.0f;
                 if (pixel_i < TILEWIDTH && pixel_j < TILEWIDTH) {
-                    blurredPixel = SharedImage[shared_pixel_i][shared_pixel_j] * kernel[ki * kernelWidth + kj];
+                    blurredPixel = SharedImage[pixel_i][pixel_j] * kernel[ki * kernelWidth + kj];
                 } else {
                     blurredPixel = image[pixel_i * imageWidth + pixel_j] * kernel[ki * kernelWidth + kj];
                 }
