@@ -376,15 +376,15 @@ def main():
 
     print("Calculating Covariance")
     cov_mat = covariance(vert_grad, horiz_grad)
-    te = time.time()
-
-    print(f"GPU Total Time:         {te - ts}")
 
     print("Getting Corners")
     feature_list = find_corners(cov_mat)
 
     print("Getting Features")
     top_features = get_top_features(feature_list)
+
+    te = time.time()
+    print(f"GPU N Total Time:       {te - ts}")
 
     img = image.copy()
     # with open('corners.txt', 'w') as f:

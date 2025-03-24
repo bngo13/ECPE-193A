@@ -380,6 +380,7 @@ def get_top_features(features: list, k_values = KVAL, val_distance = MIN_DISTANC
     return top_features
 
 def main():
+    ts = time.time()
     get_args()
     parse_args()
 
@@ -396,6 +397,9 @@ def main():
 
     print("Getting Features")
     top_features = get_top_features(feature_list)
+    te = time.time()
+
+    print(f"GPU S Total Time:       {te - ts}")
 
 
     img = image.copy()
