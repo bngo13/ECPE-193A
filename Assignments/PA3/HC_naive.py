@@ -37,7 +37,7 @@ __global__ void convolution(float *image, float *convImg, float *kernel, int ima
     }
 }
 
-__global__ void covariance(float *vert_grad, float *horiz_grad, int64_t *cov_mat, int image_height, int image_width, int window) {
+__global__ void covariance(float *vert_grad, float *horiz_grad, float32 *cov_mat, int image_height, int image_width, int window) {
     // Initialize Vars
     int64_t ixx = 0;
     int64_t iyy = 0;
@@ -291,7 +291,7 @@ def covariance(vert_grad, horiz_grad):
     # Flatten everything
     vert_grad = vert_grad.flatten()
     horiz_grad = horiz_grad.flatten()
-    cov_mat = np.zeros((image_height, image_width, 2, 2)).flatten().astype(np.int64)
+    cov_mat = np.zeros((image_height, image_width, 2, 2)).flatten().astype(np.float32)
 
     # Mallocs
     d_vert = drv.mem_alloc(vert_grad.nbytes)
