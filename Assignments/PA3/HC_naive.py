@@ -202,7 +202,7 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
     # drv.memcpy_htod(d_convImg, convImg) # Don't need since convImg doesn't have any data
     drv.Context.synchronize()
     te = time.time()
-    # print(f"Convolve HTOD Time:     {te - ts}")
+    print(f"\tHTOD Time:     {te - ts}")
 
     # Run Convolution
     grid_x = int((image_width + block - 1) // block)
@@ -212,14 +212,14 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
     convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_x, grid_y))
     drv.Context.synchronize()
     te = time.time()
-    # print(f"Convoltion Kernel Time: {te - ts}")
+    print(f"\tKernel Time:   {te - ts}")
 
     # Get data
     ts = time.time()
     drv.memcpy_dtoh(convImg, d_convImg)
     drv.Context.synchronize()
     te = time.time()
-    # print(f"Convolve DTOH Time:     {te - ts}")
+    print(f"\tDTOH Time:     {te - ts}")
     convImg = convImg.reshape((image_height, image_width))
 
     return convImg
@@ -234,6 +234,7 @@ def vertical_gaussian():
     # Flatten and convolve
     vertical_kernel_flat = vertical_kernel.flatten().astype(np.float32)
     image_flat = image.flatten().astype(np.float32)
+    print("Vertical Gaussian Kernel Convolve:")
     vertical_blur = convolve(image_flat, vertical_kernel_flat, image_height, image_width, vert_kernel_height, vert_kernel_width)
 
     ## Horizontal Gaussian Derivative ##
@@ -246,6 +247,7 @@ def vertical_gaussian():
     # Flatten and convolve
     horizontal_kernel_flat = horizontal_kernel.flatten().astype(np.float32)
     blur_flat = vertical_blur.flatten().astype(np.float32)
+    print("Vertical Gaussian Deriv Convolve:")
     horizontal_gradient = convolve(blur_flat, horizontal_kernel_flat, blur_height, blur_width, h_kernel_height, h_kernel_width)
     return (vertical_blur.astype(np.uint8), horizontal_gradient.astype(np.uint8))
 
@@ -261,6 +263,7 @@ def horizontal_gaussian():
     # Flatten and convolve
     vertical_kernel_flat = vertical_kernel.flatten().astype(np.float32)
     image_flat = image.flatten().astype(np.float32)
+    print("Horizontal Gaussian Kernel Convolve:")
     horizontal_blur = convolve(image_flat, vertical_kernel_flat, img_h, img_w, v_kernel_h, v_kernel_w)
 
     ## Vertical Gaussian Derivative ##
@@ -273,6 +276,7 @@ def horizontal_gaussian():
     # Flatten then convolve
     kernel_flat = horizontal_kernel.flatten().astype(np.float32)
     blur_flat = horizontal_blur.flatten().astype(np.float32)
+    print("Horizontal Gaussian Deriv Convolve:")
     vertical_gradient = convolve(blur_flat, kernel_flat, blur_h, blur_w, h_kernel_h, h_kernel_w)
     return (horizontal_blur.astype(np.uint8), vertical_gradient.astype(np.uint8))
 
@@ -366,25 +370,26 @@ def get_top_features(features: list, k_values = KVAL, val_distance = MIN_DISTANC
     return top_features
 
 def main():
+    ts = time.time()
     get_args()
     parse_args()
 
-    print("Calculating Gradients")
-    ts = time.time()
+    print("-- Calculating Gradients --")
     (vertical_blur, horiz_grad) = vertical_gaussian()
     (horizontal_blur, vert_grad) = horizontal_gaussian()
+    print()
 
-    print("Calculating Covariance")
+    print("-- Calculating Covariance --")
     cov_mat = covariance(vert_grad, horiz_grad)
+    print()
 
-    print("Getting Corners")
+    print("-- Getting Corners --")
     feature_list = find_corners(cov_mat)
+    print()
 
-    print("Getting Features")
+    print("-- Getting Features --")
     top_features = get_top_features(feature_list)
-
-    te = time.time()
-    print(f"GPU N Total Time:       {te - ts}")
+    print()
 
     with open('corners.txt', 'w') as f:
       for (y,x, _) in top_features:
@@ -395,6 +400,9 @@ def main():
     # for (y,x, _) in top_features:
     #     cv2.putText(img, 'X', (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
     # imwrite("corners.pgm", img)
+
+    te = time.time()
+    print(f"GPU N Total Time:       {te - ts}")
 
 if __name__ == "__main__":
     main()
