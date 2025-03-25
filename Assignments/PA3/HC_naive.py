@@ -342,7 +342,7 @@ def get_top_features(features: list, k_values = KVAL, val_distance = MIN_DISTANC
     feature_count = 0
 
     # Sort the features first
-    sorted_features = sorted(features, key = lambda item : item[2], reverse=True)
+    sorted_features = sorted(features, key = lambda item : item[2], reverse=False)
 
   # For each feature, make sure the features chosen are at least val_distance away from each other
     for feature in sorted_features:
