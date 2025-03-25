@@ -147,7 +147,8 @@ def get_args():
 
 def parse_args():
     global image
-    image = imread(image_path)
+    image = cv2.imread(image_path)
+    # image = imread(image_path)
 
 def GaussianKernel():
     # Calc a vertical gaussian kernel
