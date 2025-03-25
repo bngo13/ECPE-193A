@@ -37,7 +37,7 @@ __global__ void convolution(float *image, float *convImg, float *kernel, int ima
     }
 }
 
-__global__ void covariance(float *vert_grad, float *horiz_grad, float64 *cov_mat, int image_height, int image_width, int window) {
+__global__ void covariance(float *vert_grad, float *horiz_grad, float64_t *cov_mat, int image_height, int image_width, int window) {
     // Initialize Vars
     int64_t ixx = 0;
     int64_t iyy = 0;
