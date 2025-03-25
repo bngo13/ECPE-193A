@@ -9,10 +9,7 @@ from pycuda.compiler import SourceModule
 gpu_kernels = SourceModule(
 r"""
 #define TILEWIDTH 32
-
-__global__ void convolution(float *image, float *convImg, float *kernel, 
-                            int imageHeight, int imageWidth, 
-                            int kernelHeight, int kernelWidth) {
+__global__ void convolution(float *image, float *convImg, float *kernel, int imageHeight, int imageWidth, int kernelHeight, int kernelWidth) {
     __shared__ float SharedImage[TILEWIDTH][TILEWIDTH];
 
     int local_i = threadIdx.x;
@@ -22,15 +19,10 @@ __global__ void convolution(float *image, float *convImg, float *kernel,
     int j = blockIdx.y * blockDim.y + threadIdx.y;
 
     // Load image into shared memory with bounds check
-    if (i < imageHeight && j < imageWidth) {
-        SharedImage[local_i][local_j] = image[i * imageWidth + j];
-    } else {
-        return;
-    }
+    SharedImage[local_i][local_j] = i < imageHeight && j < imageWidth ? image[i * imageWidth + j] : 0;
     __syncthreads();
 
     float pixel_sum = 0.0f;
-
     for (int ki = 0; ki < kernelHeight; ki++) {
         for (int kj = 0; kj < kernelWidth; kj++) {
             // Calculate offsets based on kernel
@@ -41,20 +33,16 @@ __global__ void convolution(float *image, float *convImg, float *kernel,
             int pixel_i = i + offset_i;
             int pixel_j = j + offset_j;
 
+            int shared_pixel_i = pixel_i - blockIdx.x * blockDim.x;
+            int shared_pixel_j = pixel_j - blockIdx.y * blockDim.y;
+
+            float blurredPixel = 0.0f;
+
             // Calculate Gradient
             if (pixel_i >= 0 && pixel_j >= 0 && pixel_i < imageHeight && pixel_j < imageWidth) {
                 // Convert global indices to shared memory indices relative to this block
-                int shared_pixel_i = pixel_i - blockIdx.x * blockDim.x;
-                int shared_pixel_j = pixel_j - blockIdx.y * blockDim.y;
-                float blurredPixel = 0.0f;
-                if (shared_pixel_i >= 0 && shared_pixel_j >= 0 && 
-                    shared_pixel_i < TILEWIDTH && shared_pixel_j < TILEWIDTH) {
-                    blurredPixel = SharedImage[shared_pixel_i][shared_pixel_j] * 
-                                   kernel[ki * kernelWidth + kj];
-                } else {
-                    blurredPixel = image[pixel_i * imageWidth + pixel_j] * 
-                                   kernel[ki * kernelWidth + kj];
-                }
+                int condition = shared_pixel_i >= 0 && shared_pixel_j >= 0 && shared_pixel_i < TILEWIDTH && shared_pixel_j < TILEWIDTH;
+                blurredPixel = condition ? SharedImage[shared_pixel_i][shared_pixel_j] * kernel[ki * kernelWidth + kj] : image[pixel_i * imageWidth + pixel_j] * kernel[ki * kernelWidth + kj];
                 pixel_sum += blurredPixel;
             }
         }
@@ -67,8 +55,8 @@ __global__ void convolution(float *image, float *convImg, float *kernel,
 
 
 __global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, int image_height, int image_width, int window) {
-    __shared__ int VertShared[TILEWIDTH][TILEWIDTH];
-    __shared__ int HoriShared[TILEWIDTH][TILEWIDTH];
+    __shared__ float VertShared[TILEWIDTH][TILEWIDTH];
+    __shared__ float HoriShared[TILEWIDTH][TILEWIDTH];
 
     // Initialize Vars
     int64_t ixx = 0;
@@ -76,21 +64,15 @@ __global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, 
     int64_t ixy = 0;
     int w = window / 2;
 
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-
     int local_i = threadIdx.x;
     int local_j = threadIdx.y;
 
+    int i = blockIdx.x * blockDim.x + local_i;
+    int j = blockIdx.y * blockDim.y + local_j;
 
     // Load image into shared memory
-    if (i < image_height && j < image_width) {
-        VertShared[local_i][local_j] = vert_grad[i * image_width + j];
-        HoriShared[local_i][local_j] = horiz_grad[i * image_width + j];
-    } else {
-        return;
-    }
-
+    VertShared[local_i][local_j] = i < image_height && j < image_width ? vert_grad[i * image_width + j] : 0.0f;
+    HoriShared[local_i][local_j] = i < image_height && j < image_width ? horiz_grad[i * image_width + j] : 0.0f;
     __syncthreads();
 
     for (int offset_i = -w; offset_i < w + 1; offset_i++) {
@@ -116,6 +98,7 @@ __global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, 
             }
         }
     }
+
     if (i < image_height && j < image_width) {
         // Save the matrix values with an offset of 4 per pixel. Legit couldn't find a way to double pointer this so this is a workaround.
         int index = (i * image_width + j) * 4;
