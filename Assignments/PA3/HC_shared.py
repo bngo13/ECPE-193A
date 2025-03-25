@@ -66,7 +66,7 @@ __global__ void convolution(float *image, float *convImg, float *kernel,
 }
 
 
-__global__ void covariance(int *image, int *vert_grad, int *horiz_grad, int64_t *cov_mat, int image_height, int image_width, int window) {
+__global__ void covariance(float *image, float *vert_grad, float *horiz_grad, float *cov_mat, int image_height, int image_width, int window) {
     __shared__ int VertShared[TILEWIDTH][TILEWIDTH];
     __shared__ int HoriShared[TILEWIDTH][TILEWIDTH];
 
@@ -299,7 +299,7 @@ def vertical_gaussian():
     blur_flat = vertical_blur.flatten().astype(np.float32)
     print("Vertical Gaussian Deriv Convolve:")
     horizontal_gradient = convolve(blur_flat, horizontal_kernel_flat, blur_height, blur_width, h_kernel_height, h_kernel_width)
-    return (vertical_blur.astype(np.uint8), horizontal_gradient.astype(np.uint8))
+    return (vertical_blur.astype(np.uint8), horizontal_gradient)
 
 def horizontal_gaussian():
     ## Horizontal Gaussian Blur ##
@@ -328,7 +328,7 @@ def horizontal_gaussian():
     blur_flat = horizontal_blur.flatten().astype(np.float32)
     print("Horizontal Gaussian Deriv Convolve:")
     vertical_gradient = convolve(blur_flat, kernel_flat, blur_h, blur_w, h_kernel_h, h_kernel_w)
-    return (horizontal_blur.astype(np.uint8), vertical_gradient.astype(np.uint8))
+    return (horizontal_blur.astype(np.uint8), vertical_gradient)
 
 def covariance(vert_grad, horiz_grad):
     (image_height, image_width) = image.shape
@@ -338,13 +338,11 @@ def covariance(vert_grad, horiz_grad):
     window = np.int32(hcwin)
 
     # Flatten everything
-    img = image.flatten().astype(np.int32)
-    vert_grad = vert_grad.flatten().astype(np.int32)
-    horiz_grad = horiz_grad.flatten().astype(np.int32)
-    cov_mat = np.zeros((image_height, image_width, 2, 2)).flatten().astype(np.int64)
+    vert_grad = vert_grad.flatten()
+    horiz_grad = horiz_grad.flatten()
+    cov_mat = np.zeros((image_height, image_width, 2, 2)).flatten().astype(np.float32)
 
     # Mallocs
-    d_image = drv.mem_alloc(img.nbytes)
     d_vert = drv.mem_alloc(vert_grad.nbytes)
     d_horiz = drv.mem_alloc(horiz_grad.nbytes)
     d_cov_mat = drv.mem_alloc(cov_mat.nbytes)
@@ -352,7 +350,6 @@ def covariance(vert_grad, horiz_grad):
 
     # Memcpys
     ts = time.time()
-    drv.memcpy_htod(d_image, img)
     drv.memcpy_htod(d_vert, vert_grad)
     drv.memcpy_htod(d_horiz, horiz_grad)
     drv.Context.synchronize()
@@ -363,7 +360,7 @@ def covariance(vert_grad, horiz_grad):
     ts = time.time()
     grid_size = int((max(image_height, image_width) + block - 1) // block)
     covariance_gpu = gpu_kernels.get_function("covariance")
-    covariance_gpu(d_image, d_vert, d_horiz, d_cov_mat, image_height, image_width, window, block=(block, block, 1), grid=(grid_size, grid_size))
+    covariance_gpu(d_vert, d_horiz, d_cov_mat, image_height, image_width, window, block=(block, block, 1), grid=(grid_size, grid_size))
     drv.Context.synchronize()
     te = time.time()
     print(f"\tKernel Time:   {te - ts}")
