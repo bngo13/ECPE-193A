@@ -66,7 +66,7 @@ __global__ void convolution(float *image, float *convImg, float *kernel,
 }
 
 
-__global__ void covariance(float *image, float *vert_grad, float *horiz_grad, float *cov_mat, int image_height, int image_width, int window) {
+__global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, int image_height, int image_width, int window) {
     __shared__ int VertShared[TILEWIDTH][TILEWIDTH];
     __shared__ int HoriShared[TILEWIDTH][TILEWIDTH];
 
