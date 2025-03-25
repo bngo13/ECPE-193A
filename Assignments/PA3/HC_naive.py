@@ -86,7 +86,7 @@ block = None
 
 CORNERNESS = 0.04
 KVAL = 50
-MIN_DISTANCE = 5
+MIN_DISTANCE = 15
 
 def imread(filename):
     with open(filename, 'rb') as f:
