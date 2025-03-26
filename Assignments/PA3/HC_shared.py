@@ -59,9 +59,9 @@ __global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, 
     __shared__ float HoriShared[TILEWIDTH][TILEWIDTH];
 
     // Initialize Vars
-    int64_t ixx = 0;
-    int64_t iyy = 0;
-    int64_t ixy = 0;
+    float ixx = 0;
+    float iyy = 0;
+    float ixy = 0;
     int w = window / 2;
 
     int local_i = threadIdx.x;
@@ -89,8 +89,8 @@ __global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, 
                 int index = pixel_i * image_width + pixel_j;
                 int cond = local_offset_i >= 0 && local_offset_j >= 0 && local_offset_i < TILEWIDTH && local_offset_j < TILEWIDTH;
 
-                int64_t vert = cond ? VertShared[local_offset_i][local_offset_j] : vert_grad[index];
-                int64_t horiz = cond ? HoriShared[local_offset_i][local_offset_j] : horiz_grad[index];
+                float vert = cond ? VertShared[local_offset_i][local_offset_j] : vert_grad[index];
+                float horiz = cond ? HoriShared[local_offset_i][local_offset_j] : horiz_grad[index];
 
                 ixx += vert * vert;
                 iyy += horiz * horiz;

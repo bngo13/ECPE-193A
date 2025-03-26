@@ -39,9 +39,9 @@ __global__ void convolution(float *image, float *convImg, float *kernel, int ima
 
 __global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, int image_height, int image_width, int window) {
     // Initialize Vars
-    int64_t ixx = 0;
-    int64_t iyy = 0;
-    int64_t ixy = 0;
+    float ixx = 0;
+    float iyy = 0;
+    float ixy = 0;
     int w = window / 2;
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -51,8 +51,8 @@ __global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, 
         for (int offset_j = -w; offset_j < w + 1; offset_j++) {
             int pixel_i = i + offset_i;
             int pixel_j = j + offset_j;
-            int64_t vert = 0;
-            int64_t horiz = 0;
+            float vert = 0;
+            float horiz = 0;
             int idx = pixel_i * image_width + pixel_j;
 
             if (idx >= 0 && pixel_i < image_height && pixel_j < image_width) {
