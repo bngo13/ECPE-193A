@@ -67,12 +67,11 @@ __global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, 
     }
 
     if (i < image_height && j < image_width) {
-        // Save the matrix values with an offset of 4 per pixel. Legit couldn't find a way to double pointer this so this is a workaround.
-        int index = (i * image_width + j) * 4;
+        // Save the matrix values with an offset of 3 per pixel. Legit couldn't find a way to double pointer this so this is a workaround.
+        int index = (i * image_width + j) * 3;
         cov_mat[index + 0] = ixx;
         cov_mat[index + 1] = ixy;
-        cov_mat[index + 2] = ixy;
-        cov_mat[index + 3] = iyy;
+        cov_mat[index + 2] = iyy;
     }
 }
 """
@@ -290,7 +289,7 @@ def covariance(vert_grad, horiz_grad):
     # Flatten everything
     vert_grad = vert_grad.flatten()
     horiz_grad = horiz_grad.flatten()
-    cov_mat = np.zeros((image_height, image_width, 2, 2)).flatten().astype(np.float32)
+    cov_mat = np.zeros((image_height, image_width, 3)).flatten().astype(np.float32)
 
     # Mallocs
     d_vert = drv.mem_alloc(vert_grad.nbytes)
@@ -321,19 +320,27 @@ def covariance(vert_grad, horiz_grad):
     drv.Context.synchronize()
     te = time.time()
     print(f"Covariance DTOH Time:   {te - ts}")
-    cov_mat = cov_mat.reshape((image_height, image_width, 2, 2))
+    cov_mat = cov_mat.reshape((image_height, image_width, 3))
     return cov_mat
 
 def find_corners(cov_mat, cornerness_val = CORNERNESS):
-    features = []
+    # Get individual covariance for calculation
+    Sxx = cov_mat[:, :, [0]].flatten()
+    Sxy = cov_mat[:, :, [1]].flatten()
+    Syy = cov_mat[:, :, [2]].flatten()
 
-    # For each pixel, calculate the eigen values based on covariance matrix
-    evals, _ = np.linalg.eig(cov_mat)
-    (h, w, _) = evals.shape
+    # Find best corners
+    detM = (Sxx * Syy) - (Sxy ** 2)
+    traceM = Sxx + Syy
+    R = detM - cornerness_val * (traceM ** 2)
+
+    # Reshape back to image to get features later
+    features = []
+    R = R.reshape(image.shape)
+    (h, w) = R.shape
     for i in range(0, h):
         for j in range(0, w):
-            val = (evals[i][j][0] * evals[i][j][1]) - (cornerness_val * ((evals[i][j][0] + evals[i][j][1]) ** 2))
-            features.append((i, j, val))
+            features.append((i, j, R[i, j]))
 
     return features
 
@@ -344,7 +351,7 @@ def get_top_features(features: list, k_values = KVAL, val_distance = MIN_DISTANC
     # Sort the features first
     sorted_features = sorted(features, key = lambda item : item[2], reverse=True)
 
-  # For each feature, make sure the features chosen are at least val_distance away from each other
+    # For each feature, make sure the features chosen are at least val_distance away from each other
     for feature in sorted_features:
         # Keep going until k_values is hit
         if len(top_features) >= k_values:

@@ -100,12 +100,11 @@ __global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, 
     }
 
     if (i < image_height && j < image_width) {
-        // Save the matrix values with an offset of 4 per pixel. Legit couldn't find a way to double pointer this so this is a workaround.
-        int index = (i * image_width + j) * 4;
+        // Save the matrix values with an offset of 3 per pixel. Legit couldn't find a way to double pointer this so this is a workaround.
+        int index = (i * image_width + j) * 3;
         cov_mat[index + 0] = ixx;
         cov_mat[index + 1] = ixy;
-        cov_mat[index + 2] = ixy;
-        cov_mat[index + 3] = iyy;
+        cov_mat[index + 2] = iyy;
     }
 }
 """
@@ -119,7 +118,7 @@ block = None
 
 CORNERNESS = 0.04
 KVAL = 50
-MIN_DISTANCE = 5
+MIN_DISTANCE = 15
 
 def imread(filename):
     with open(filename, 'rb') as f:
@@ -323,7 +322,7 @@ def covariance(vert_grad, horiz_grad):
     # Flatten everything
     vert_grad = vert_grad.flatten()
     horiz_grad = horiz_grad.flatten()
-    cov_mat = np.zeros((image_height, image_width, 2, 2)).flatten().astype(np.float32)
+    cov_mat = np.zeros((image_height, image_width, 3)).flatten().astype(np.float32)
 
     # Mallocs
     d_vert = drv.mem_alloc(vert_grad.nbytes)
@@ -354,20 +353,29 @@ def covariance(vert_grad, horiz_grad):
     drv.Context.synchronize()
     te = time.time()
     print(f"\tDTOH Time:     {te - ts}")
-
-    cov_mat = cov_mat.reshape((image_height, image_width, 2, 2))
+    print(f"\tDTOH Time:     {te - ts}")
+    cov_mat = cov_mat.reshape((image_height, image_width, 3))
     return cov_mat
 
 def find_corners(cov_mat, cornerness_val = CORNERNESS):
-    features = []
 
-    # For each pixel, calculate the eigen values based on covariance matrix
-    evals, _ = np.linalg.eig(cov_mat)
-    (h, w, _) = evals.shape
+    # Get individual covariance for calculation
+    Sxx = cov_mat[:, :, [0]].flatten()
+    Sxy = cov_mat[:, :, [1]].flatten()
+    Syy = cov_mat[:, :, [2]].flatten()
+
+    # Find best corners
+    detM = (Sxx * Syy) - (Sxy ** 2)
+    traceM = Sxx + Syy
+    R = detM - cornerness_val * (traceM ** 2)
+
+    # Reshape back to image to get features later
+    features = []
+    R = R.reshape(image.shape)
+    (h, w) = R.shape
     for i in range(0, h):
         for j in range(0, w):
-            val = (evals[i][j][0] * evals[i][j][1]) - (cornerness_val * ((evals[i][j][0] + evals[i][j][1]) ** 2))
-            features.append((i, j, val))
+            features.append((i, j, R[i, j]))
 
     return features
 
@@ -427,11 +435,11 @@ def main():
       for (y,x, _) in top_features:
         f.write(f"{x} {y}\n")
 
-    # import cv2
-    # img = image.copy()
-    # for (y,x, _) in top_features:
-    #     cv2.putText(img, 'X', (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
-    # imwrite("corners.pgm", img)
+    import cv2
+    img = image.copy()
+    for (y,x, _) in top_features:
+        cv2.putText(img, 'X', (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
+    imwrite("corners.pgm", img)
 
     te = time.time()
     print(f"GPU S Total Time:       {te - ts}")
