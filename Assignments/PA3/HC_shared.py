@@ -258,7 +258,7 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
     drv.memcpy_dtoh(convImg, d_convImg)
     drv.Context.synchronize()
     te = time.time()
-    d2h_timem += te - ts
+    d2h_time += te - ts
     print(f"\tDTOH Time:     {te - ts}")
 
     convImg = convImg.reshape((image_height, image_width))
