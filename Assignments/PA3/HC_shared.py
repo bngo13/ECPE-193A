@@ -120,6 +120,10 @@ CORNERNESS = 0.04
 KVAL = 50
 MIN_DISTANCE = 15
 
+gpu_ktime = 0
+d2h_time = 0
+h2d_time = 0
+
 def imread(filename):
     with open(filename, 'rb') as f:
         # Read the magic number (P5)
@@ -212,6 +216,7 @@ def GaussianDerivative():
     return G
 
 def convolve(image, kernel, image_height, image_width, kernel_height, kernel_width):
+    global gpu_ktime, h2d_time, d2h_time
     image_height = np.int32(image_height)
     image_width = np.int32(image_width)
     kernel_height = np.int32(kernel_height)
@@ -234,6 +239,7 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
     # drv.memcpy_htod(d_convImg, convImg) # Don't need since convImg doesn't have any data
     drv.Context.synchronize()
     te = time.time()
+    h2d_time += te - ts
     print(f"\tHTOD Time:     {te - ts}")
 
     # Run Convolution
@@ -244,6 +250,7 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
     convolution(d_image, d_convImg, d_kernel, image_height, image_width, kernel_height, kernel_width, block=(block, block, 1), grid=(grid_x, grid_y))
     drv.Context.synchronize()
     te = time.time()
+    gpu_ktime += te - ts
     print(f"\tKernel Time:   {te - ts}")
 
     # Get data
@@ -251,6 +258,7 @@ def convolve(image, kernel, image_height, image_width, kernel_height, kernel_wid
     drv.memcpy_dtoh(convImg, d_convImg)
     drv.Context.synchronize()
     te = time.time()
+    d2h_timem += te - ts
     print(f"\tDTOH Time:     {te - ts}")
 
     convImg = convImg.reshape((image_height, image_width))
@@ -336,6 +344,7 @@ def covariance(vert_grad, horiz_grad):
     drv.memcpy_htod(d_horiz, horiz_grad)
     drv.Context.synchronize()
     te = time.time()
+    h2d_time += te - ts
     print(f"\tHTOD Time:     {te - ts}")
 
     # Run the thing
@@ -345,6 +354,7 @@ def covariance(vert_grad, horiz_grad):
     covariance_gpu(d_vert, d_horiz, d_cov_mat, image_height, image_width, window, block=(block, block, 1), grid=(grid_size, grid_size))
     drv.Context.synchronize()
     te = time.time()
+    gpu_ktime += te - ts
     print(f"\tKernel Time:   {te - ts}")
 
     # Grab data
@@ -352,6 +362,7 @@ def covariance(vert_grad, horiz_grad):
     drv.memcpy_dtoh(cov_mat, d_cov_mat)
     drv.Context.synchronize()
     te = time.time()
+    d2h_time += te - ts
     print(f"\tDTOH Time:     {te - ts}")
     cov_mat = cov_mat.reshape((image_height, image_width, 3))
     return cov_mat
@@ -439,7 +450,10 @@ def main():
     imwrite("corners.pgm", img)
 
     te = time.time()
-    print(f"GPU S Total Time:       {te - ts}")
+
+    # Print Format
+    print(f"image name, sigma, HC window size, GPU kernel time, h2d time, d2htime, total time")
+    print(f"{image_path},{sigma},{hcwin},{gpu_ktime},{h2d_time},{d2h_time},{te-ts}")
 
 if __name__ == "__main__":
     main()
