@@ -118,7 +118,7 @@ block = None
 
 CORNERNESS = 0.04
 KVAL = 50
-MIN_DISTANCE = 15
+MIN_DISTANCE = 5
 
 gpu_ktime = 0
 d2h_time = 0
