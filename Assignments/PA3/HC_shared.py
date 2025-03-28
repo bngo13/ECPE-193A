@@ -101,11 +101,10 @@ __global__ void covariance(float *vert_grad, float *horiz_grad, float *cov_mat, 
 
     if (i < image_height && j < image_width) {
         // Save the matrix values with an offset of 4 per pixel. Legit couldn't find a way to double pointer this so this is a workaround.
-        int index = (i * image_width + j) * 4;
+        int index = (i * image_width + j) * 3;
         cov_mat[index + 0] = ixx;
         cov_mat[index + 1] = ixy;
-        cov_mat[index + 2] = ixy;
-        cov_mat[index + 3] = iyy;
+        cov_mat[index + 2] = iyy;
     }
 }
 """
@@ -323,7 +322,7 @@ def covariance(vert_grad, horiz_grad):
     # Flatten everything
     vert_grad = vert_grad.flatten()
     horiz_grad = horiz_grad.flatten()
-    cov_mat = np.zeros((image_height, image_width, 2, 2)).flatten().astype(np.float32)
+    cov_mat = np.zeros((image_height, image_width, 3)).flatten().astype(np.float32)
 
     # Mallocs
     d_vert = drv.mem_alloc(vert_grad.nbytes)
@@ -354,14 +353,18 @@ def covariance(vert_grad, horiz_grad):
     drv.Context.synchronize()
     te = time.time()
     print(f"\tDTOH Time:     {te - ts}")
-    cov_mat = cov_mat.reshape((image_height, image_width, 2, 2))
+    cov_mat = cov_mat.reshape((image_height, image_width, 3))
     return cov_mat
 
 def find_corners(cov_mat, cornerness_val = CORNERNESS):
-    # Get det and trace directly. Faster than calculating eigenvalues
-    detM = np.linalg.det(cov_mat)
-    traceM = np.linalg.trace(cov_mat)
+    # Grab values for det and trace
+    Sxx = cov_mat[:, :, [0]]
+    Sxy = cov_mat[:, :, [1]]
+    Syy = cov_mat[:, :, [2]]
 
+    # Get det and trace directly. Faster than calculating eigenvalues
+    detM = (Sxx * Syy) - (Sxy ** 2)
+    traceM = Sxx + Syy
     R = detM - cornerness_val * (traceM ** 2)
 
     # Reshape back to image to get features later

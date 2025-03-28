@@ -336,13 +336,14 @@ def covariance(vert_grad, horiz_grad):
     return cov_mat
 
 def find_corners(cov_mat, cornerness_val = CORNERNESS):
+    # Grab values for det and trace
     Sxx = cov_mat[:, :, [0]]
     Sxy = cov_mat[:, :, [1]]
     Syy = cov_mat[:, :, [2]]
+
     # Get det and trace directly. Faster than calculating eigenvalues
     detM = (Sxx * Syy) - (Sxy ** 2)
     traceM = Sxx + Syy
-
     R = detM - cornerness_val * (traceM ** 2)
 
     # Reshape back to image to get features later
