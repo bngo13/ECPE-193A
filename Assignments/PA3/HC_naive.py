@@ -410,12 +410,6 @@ def main():
       for (y,x, _) in top_features:
         f.write(f"{x} {y}\n")
 
-    import cv2
-    img = image.copy()
-    for (y,x, _) in top_features:
-        cv2.putText(img, 'X', (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
-    imwrite("corners.pgm", img)
-
     te = time.time()
 
     # Print Format
