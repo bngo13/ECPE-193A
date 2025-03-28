@@ -321,6 +321,7 @@ def horizontal_gaussian():
     return (horizontal_blur.astype(np.uint8), vertical_gradient)
 
 def covariance(vert_grad, horiz_grad):
+    global gpu_ktime, h2d_time, d2h_time
     (image_height, image_width) = image.shape
 
     image_height = np.int32(image_height)
