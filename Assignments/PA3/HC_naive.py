@@ -419,6 +419,7 @@ def main():
     te = time.time()
 
     # Print Format
+    print()
     print(f"image name, sigma, HC window size, GPU kernel time, h2d time, d2htime, total time")
     print(f"{image_path},{sigma},{hcwin},{gpu_ktime},{h2d_time},{d2h_time},{te-ts}")
 
