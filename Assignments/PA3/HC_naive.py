@@ -339,7 +339,7 @@ def covariance(vert_grad, horiz_grad):
 def find_corners(cov_mat, cornerness_val = CORNERNESS):
     # Get det and trace directly. Faster than calculating eigenvalues
     detM = np.linalg.det(cov_mat)
-    traceM = np.linalg.trace(cov_mat)
+    traceM = np.trace(cov_mat)
 
     R = detM - cornerness_val * (traceM ** 2)
 
