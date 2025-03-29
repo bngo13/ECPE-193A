@@ -417,7 +417,20 @@ def get_top_features(features: list, k_values = KVAL, val_distance = MIN_DISTANC
 
     return top_features
 
+def choose_gpu():
+    student_id = 989400138
+    drv.init()
+
+    num_gpus = drv.Device.count()
+
+    gpu_index = student_id % num_gpus
+
+    print(f"GPU Index: {gpu_index}")
+
+    drv.Device(gpu_index)
+
 def main():
+    choose_gpu()
     ts = time.time()
     get_args()
     parse_args()
