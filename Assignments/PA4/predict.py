@@ -80,15 +80,16 @@ def show_model_summary(models):
         print(model.summary())
 
 def predict_models(models, df):
-    acc_list = [0, 0, 0, 0]
-    
     for i, (model, func) in enumerate(zip(models, [get_conv_data, get_cov_data, get_htod_data, get_dtoh_data])):
         X, y = func(df)
         X = sm.add_constant(X)
         y_pred = model.predict(X)
         y_pred = y_pred.to_frame(y.columns[0])
-        acc_list[i] = r2_score(y, y_pred) * 100
-    return acc_list
+        print(f"-- Model {i + 1} --")
+        print(f"Actual Values: ")
+        for i in y.values: print(i[0])
+        print(f"Predicted Values:")
+        for i in y_pred.values: print(i[0])
 
 def main():
     args()
@@ -103,9 +104,7 @@ def main():
     show_model_summary(models)
     
     # Test Models
-    model_accuracies = predict_models(models, testing_df)
-    for acc, name in zip(model_accuracies, ["Convolution", "Covariance", "H2D", "D2H"]):
-        print(f"{name} Accuracy: {acc}")
+    predict_models(models, testing_df)
 
 if __name__ == "__main__":
     main()
