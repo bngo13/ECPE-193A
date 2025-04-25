@@ -1,5 +1,5 @@
 # General Imports
-import cudf as pd
+import pandas as pd
 import numpy as np
 import glob
 import time
@@ -8,10 +8,14 @@ import time
 from sklearn.preprocessing import LabelEncoder
 from sklearn.discriminant_analysis import StandardScaler
 from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.pipeline import Pipeline
 
 # Models
-from cuml.neighbors import KNeighborsClassifier as KNN
-from cuml.ensemble import RandomForestClassifier as RandomForest
+from sklearn.svm import SVC as SVM
+from sklearn.tree import DecisionTreeClassifier as DecisionTree
+from sklearn.naive_bayes import GaussianNB as NaiveBayes
+from sklearn.neighbors import KNeighborsClassifier as KNN
+from sklearn.ensemble import RandomForestClassifier as RandomForest
 
 # Scoring
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
@@ -36,6 +40,21 @@ def main():
     # Label Data
     le = label_dataset(master_df, target)
 
+    # Create Correlation Matrix
+    corr_mat = master_df.corr()
+    print(f"Correlation features sorted by highest correlation to lowest correlation:")
+    print(f"{corr_mat['Class'].sort_values(ascending=False)}")
+
+    # Show Correlation Matrix
+    print("Close the correlation matrix window to continue...")
+    plt.figure(figsize=(10,8))
+    sns.heatmap(corr_mat, annot=True, cmap='coolwarm', square=True)
+    plt.title("Correlation Matrix")
+    plt.xlabel("Feature Index")
+    plt.ylabel("Feature Index")
+    plt.tight_layout()
+    plt.show()
+
     # Split dataset and create scaled alternatives
     scaler = StandardScaler()
     X_train, X_test, y_train, y_test = split_dataset(master_df, features, target, 0.3, 42)
@@ -56,12 +75,18 @@ def main():
     # Test non scaled models
     print("\n-- Testing Phase --\n")
     print("Testing non scaled models...")
+    start = time.time()
     test_dataset([random_forest_trained], X_test, y_test, ["Random Forest"], le)
+    end = time.time()
+    print(f"RF Testing: {end - start}")
     print()
 
     # Test scaled models
     print("Testing scaled models...")
+    start = time.time()
     test_dataset([knn_trained], X_test_scaled, y_test, ["KNN"], le)
+    end = time.time()
+    print(f"KNN Testing: {end - start}")
 
     plt.show()
 
